@@ -45,6 +45,8 @@ func run(args []string) error {
 		return runTest(args[1:])
 	case "review":
 		return runReview(args[1:])
+	case "linear":
+		return runLinear(args[1:])
 	case "help":
 		if len(args) > 1 {
 			printCommandHelp(args[1])
@@ -79,6 +81,7 @@ func printUsage() {
 ` + testHelp() + `
 ` + fixHelp() + `
 ` + reviewHelp() + `
+` + linearHelp() + `
 ` + initHelp() + `
 ` + pipelineHelp())
 }
@@ -95,6 +98,8 @@ func printCommandHelp(cmd string) {
 		fmt.Print(fixHelp())
 	case "review":
 		fmt.Print(reviewHelp())
+	case "linear":
+		fmt.Print(linearHelp())
 	case "init":
 		fmt.Print(initHelp())
 	case "pipeline":
@@ -120,6 +125,7 @@ func planHelp() string {
 │    --format <fmt>    json | yaml (default: yaml)
 │    --out    <path>   Save plan to file
 │    --issue  <KEY>    Fetch Jira issue as task input
+│    --linear <KEY>    Fetch Linear issue as task input (needs LINEAR_API_KEY)
 │    --exec-ready      Fail if plan has validation errors
 │    -y, --yes         Skip approval and feedback prompts
 │

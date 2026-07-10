@@ -132,7 +132,6 @@ func FindConfig(startDir string) string {
 
 var supportedDrivers = map[string]bool{
 	"claude-code": true,
-	"pi":          true,
 	"":            true,
 }
 
@@ -142,7 +141,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("project.name is required")
 	}
 	if !supportedDrivers[c.LLM.Driver] {
-		return fmt.Errorf("unsupported llm.driver %q; supported: pi, claude-code", c.LLM.Driver)
+		return fmt.Errorf("unsupported llm.driver %q; supported: claude-code", c.LLM.Driver)
 	}
 	return nil
 }

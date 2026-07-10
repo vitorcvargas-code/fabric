@@ -14,7 +14,7 @@ bash install.sh
 fabric version
 ```
 
-Requires Go. For LLM calls: `claude` or `pi` CLI.
+Requires Go. For LLM calls: `claude` CLI.
 
 ### Quick start
 
@@ -36,6 +36,23 @@ fabric review plan.json                                 # review + fix loop
 
 Run `fabric help` for the full command reference, or `fabric help <command>` for details on a specific command.
 
+### Linear as the work source
+
+Pull work from Linear instead of typing a task. Set `LINEAR_API_KEY` (a personal
+API key from [Security & access settings](https://linear.app/settings/account/security)),
+then:
+
+```bash
+fabric linear list --team FAB          # open issues, marked ready vs blocked
+fabric linear show FAB-12              # print an issue as task text
+fabric plan --linear FAB-12 --out plan.json   # plan straight from an issue
+```
+
+An issue is **ready** when it is not done/canceled and has no unfinished blocker
+(a `blockedBy` relation). This is the query that answers "what is parallel-safe to
+pick up right now?" — the seam a Linear-driven orchestrator builds on. `list`
+pages through every open issue, so foundation items are never missed.
+
 ### Configuration — `fabric.yaml`
 
 ```yaml
@@ -43,7 +60,7 @@ project:
   name: my-project
 
 llm:
-  driver: claude-code                          # or pi
+  driver: claude-code
   model: deepseek-v4-pro-claude                # default for all phases
 
   # Global inject: rules/skills applied to EVERY phase prompt.
@@ -104,16 +121,6 @@ llm:
 
   timeout_seconds: 600                           # global fallback (default: 600)
 
-  # Per-model pricing for rate-card cost estimation (pi driver only).
-  # The claude-code driver uses native cost reporting.
-  model_pricing:
-    claude-haiku-4-5-20251001:
-      input_per_1m: 1.0
-      output_per_1m: 5.0
-    deepseek-v4-pro-claude:
-      input_per_1m: 2.0
-      output_per_1m: 8.0
-
 command:
   format: ./gradlew ktlintFormat                 # or gofmt, prettier, etc.
   project_check: ./gradlew check                 # build + tests
@@ -131,7 +138,7 @@ command:
 | Section | What it controls |
 |---|---|
 | `project.name` | Project identity |
-| `llm.driver` | `claude-code` or `pi` |
+| `llm.driver` | `claude-code` |
 | `llm.model` | Default model (all phases) |
 | `llm.inject` | Global rules/skills injected into every phase prompt (e.g. `["rules/security", "skills/observability"]`) |
 | `llm.kb_sections` | Global KB section filter (empty = full KB). Per-phase `kb_sections` overrides this. |
@@ -142,7 +149,6 @@ command:
 | `llm.phases.<phase>.inject` | Per-phase rules/skills — appended to global `llm.inject`. Resolved from `.claude/<path>/RULE.md` or `SKILL.md` |
 | `llm.phases.<phase>.kb_sections` | Per-phase KB section filter — replaces global `llm.kb_sections`. Set to `[]` for no KB |
 | `llm.timeout_seconds` | Global LLM call timeout (default: 600) |
-| `llm.model_pricing.<model>` | Rate-card pricing for pi driver (input/output per 1M tokens) |
 | `command.format` | Executor post-write formatting |
 | `command.project_check` | Reviewer build/test command |
 | `command.error_filter` | Grep patterns (list) to filter check output for the reviewer/build-fix LLM |
@@ -198,7 +204,6 @@ graph TB
 
     subgraph Driver["llm.Driver interface"]
         CC["claude-code<br/>--print --bare<br/>scoped permissions"]
-        PI["pi CLI<br/>--no-context-files<br/>session resume"]
     end
 
     Driver --> Artifacts

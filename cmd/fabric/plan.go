@@ -12,6 +12,7 @@ import (
 	"github.com/vitorcvargas-code/fabric/internal/architect"
 	"github.com/vitorcvargas-code/fabric/internal/augmenter"
 	"github.com/vitorcvargas-code/fabric/internal/compressor"
+	"github.com/vitorcvargas-code/fabric/internal/linear"
 	"github.com/vitorcvargas-code/fabric/internal/llm"
 	"github.com/vitorcvargas-code/fabric/internal/persona"
 	"github.com/vitorcvargas-code/fabric/internal/pipeline"
@@ -69,6 +70,18 @@ func runPlan(args []string) error {
 		rawTask = issueJSON
 		if opts.rawInput == "" {
 			opts.rawInput = opts.issueKey
+		}
+	}
+
+	if opts.linearKey != "" {
+		fmt.Fprintf(os.Stderr, "fabric: fetching Linear issue %s...\n", opts.linearKey)
+		taskText, err := fetchLinearIssue(opts.linearKey)
+		if err != nil {
+			return fmt.Errorf("fetching Linear issue: %w", err)
+		}
+		rawTask = taskText
+		if opts.rawInput == "" {
+			opts.rawInput = opts.linearKey
 		}
 	}
 
@@ -368,6 +381,18 @@ func looksLikeJSON(s string) bool {
 	return len(s) > 0 && (s[0] == '{' || s[0] == '[')
 }
 
+func fetchLinearIssue(identifier string) (string, error) {
+	client, err := linear.NewClient()
+	if err != nil {
+		return "", err
+	}
+	issue, err := client.FetchIssue(identifier)
+	if err != nil {
+		return "", err
+	}
+	return issue.TaskText(), nil
+}
+
 func fetchJiraIssue(key string) (string, error) {
 	cmd := exec.Command("acli", "jira", "workitem", "view", key,
 		"--json", "--fields", "summary,description,subtasks,parent,issuelinks,customfield_10008")
@@ -460,6 +485,7 @@ type planOpts struct {
 	autoApprove   bool
 	execReady     bool
 	issueKey      string
+	linearKey     string
 	outPath       string
 }
 
@@ -485,6 +511,12 @@ func parsePlanFlags(args []string) (planOpts, error) {
 			}
 			i++
 			opts.issueKey = args[i]
+		case "--linear":
+			if i+1 >= len(args) {
+				return opts, fmt.Errorf("--linear requires an issue identifier (e.g. FAB-12)")
+			}
+			i++
+			opts.linearKey = args[i]
 		case "--format":
 			if i+1 >= len(args) {
 				return opts, fmt.Errorf("--format requires a value")
@@ -514,8 +546,11 @@ func parsePlanFlags(args []string) (planOpts, error) {
 	if opts.rawInput == "" && opts.issueKey != "" {
 		opts.rawInput = opts.issueKey
 	}
-	if opts.rawInput == "" && opts.issueKey == "" {
-		return opts, fmt.Errorf("plan requires a task description or --issue flag\n\nUsage: fabric plan \"<task>\"\n       fabric plan --issue SWACCPP-722")
+	if opts.rawInput == "" && opts.linearKey != "" {
+		opts.rawInput = opts.linearKey
+	}
+	if opts.rawInput == "" && opts.issueKey == "" && opts.linearKey == "" {
+		return opts, fmt.Errorf("plan requires a task description, --issue, or --linear flag\n\nUsage: fabric plan \"<task>\"\n       fabric plan --issue SWACCPP-722\n       fabric plan --linear FAB-12")
 	}
 	return opts, nil
 }

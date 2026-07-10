@@ -8,9 +8,7 @@ func New(driver, model string) (Driver, error) {
 	switch driver {
 	case "claude-code", "":
 		return NewClaudeCodeDriver(model), nil
-	case "pi":
-		return NewPiDriver(model), nil
 	default:
-		return nil, fmt.Errorf("unknown llm driver %q; supported: claude-code, pi", driver)
+		return nil, fmt.Errorf("unknown llm driver %q; supported: claude-code", driver)
 	}
 }
