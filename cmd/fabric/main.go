@@ -244,6 +244,9 @@ func reviewHelp() string {
 │  Circuit breaker    Final pass: [r]eplan / [f]eedback — 1 more fix / [a]ccept.
 │  Resume             State saved to plan.review.json after each pass.
 │                     Re-running detects the file and offers resume or restart.
+│  Non-interactive    With no TTY (pipe/CI/agent) every gate takes its safe
+│                     default without blocking: pass 1 and the circuit breaker
+│                     auto-fix/accept, the empty-fix gate skips. Safe unattended.
 │
 ╰───────────────────────────────────────────────────────────`
 }

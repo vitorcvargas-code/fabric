@@ -18,9 +18,9 @@ import (
 const maxFixIterations = 3
 
 type reviewState struct {
-	Pass     int               `json:"pass"`
+	Pass     int                `json:"pass"`
 	Findings []reviewer.Finding `json:"findings"`
-	Files    map[string]string `json:"files"`
+	Files    map[string]string  `json:"files"`
 }
 
 func runReview(args []string) error {
@@ -153,12 +153,10 @@ func runReview(args []string) error {
 
 		// ── Feedback gate (first pass only) ──────────────────────────
 		if i == 1 && state == nil {
-			var choice string
 			if isStdinTerminal() {
 				fmt.Fprintf(os.Stderr, "\n  [a]pprove — auto-fix  [f]eedback — add yours  [s]kip — accept\n")
-				choice = promptNoTimeout("  > ")
-				choice = strings.TrimSpace(strings.ToLower(choice))
 			}
+			choice := strings.TrimSpace(strings.ToLower(choiceOrDefault(isStdinTerminal, "  > ", "")))
 			switch {
 			case choice == "f" || choice == "feedback":
 				collectUserFeedback(&rv.Review.Findings)
@@ -175,8 +173,7 @@ func runReview(args []string) error {
 			rvPasses = i
 			fmt.Fprintf(os.Stderr, "\n  %s %d findings after %d passes — auto-fix exhausted\n", "⚠️", n, maxFixIterations)
 			fmt.Fprintf(os.Stderr, "  [r]eplan — stop  [f]eedback — 1 more fix  [a]ccept — exit\n")
-			choice := promptNoTimeout("  > ")
-			choice = strings.TrimSpace(strings.ToLower(choice))
+			choice := strings.TrimSpace(strings.ToLower(choiceOrDefault(isStdinTerminal, "  > ", "")))
 
 			switch {
 			case choice == "f" || choice == "feedback":
@@ -201,8 +198,7 @@ func runReview(args []string) error {
 			status("✗", "fix", err.Error())
 			fmt.Fprintf(os.Stderr, "\n  The fix executor returned empty. The LLM cannot determine the fix.\n")
 			fmt.Fprintf(os.Stderr, "  [g]ive guidance  [s]kip  [r]eplan\n")
-			choice := promptNoTimeout("  > ")
-			choice = strings.TrimSpace(strings.ToLower(choice))
+			choice := strings.TrimSpace(strings.ToLower(choiceOrDefault(isStdinTerminal, "  > ", "s")))
 			switch {
 			case choice == "s" || choice == "skip":
 				rvPasses = i
