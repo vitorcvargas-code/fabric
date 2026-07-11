@@ -102,7 +102,6 @@ Respond ONLY with this JSON — no markdown, no explanation:
    "strategy": "unit or integration + what it covers"}],
  "risks": ["verifiable risks — nothing speculative"]}`
 
-
 const ExecutorPrompt = `You are a file writer. Output ONLY files in this format:
 
 === FILE: path/to/File.kt ===
@@ -147,7 +146,6 @@ package br.com.ipago.ifpholderplatform.domain.shared
 
 object Bar { const val Y = 42 }`
 
-
 const TesterPrompt = `You are a test writer. Output ONLY test files in this format:
 
 === FILE: path/to/TypeUnderTestTest.kt ===
@@ -183,7 +181,6 @@ class TypeUnderTestTest {
 4. Name: {TypeUnderTest}Test or {Feature}IT.
 5. NEVER output markdown fences, notes, or explanations. Files only.
 6. EVERY file MUST start with "=== FILE: <path> ===".`
-
 
 const FixerPrompt = `You are a build-fix surgeon. You receive filtered build output — compiler
 errors, test failures, and stack traces. Find and fix ROOT CAUSES, not

@@ -25,8 +25,8 @@ type ProjectConfig struct {
 type LLMConfig struct {
 	Driver         string                    `yaml:"driver"`
 	Model          string                    `yaml:"model,omitempty"`
-	Inject         []string                  `yaml:"inject,omitempty"`       // global: rules/skills injected into every phase prompt
-	KBSections     []string                  `yaml:"kb_sections,omitempty"`   // global: KB sections to include (empty = all)
+	Inject         []string                  `yaml:"inject,omitempty"`      // global: rules/skills injected into every phase prompt
+	KBSections     []string                  `yaml:"kb_sections,omitempty"` // global: KB sections to include (empty = all)
 	Phases         map[string]PhaseLLMConfig `yaml:"phases,omitempty"`
 	UseBare        *bool                     `yaml:"use_bare,omitempty"` // nil/true: pass --bare (needs API key); false: subscription login, more tokens
 	TimeoutSeconds int                       `yaml:"timeout_seconds,omitempty"`
@@ -37,10 +37,10 @@ type LLMConfig struct {
 type PhaseLLMConfig struct {
 	Model          string   `yaml:"model,omitempty"`
 	Thinking       string   `yaml:"thinking,omitempty"`        // "off" to disable extended thinking
-	TimeoutSeconds int      `yaml:"timeout_seconds,omitempty"`  // per-phase LLM timeout override
-	SessionReuse   bool     `yaml:"session_reuse,omitempty"`    // reuse LLM session across feedback iterations
-	Inject         []string `yaml:"inject,omitempty"`           // paths to rules/skills to inject (e.g. "rules/security")
-	KBSections     []string `yaml:"kb_sections,omitempty"`      // KB section numbers to include (e.g. ["1", "2", "7"]); empty = all
+	TimeoutSeconds int      `yaml:"timeout_seconds,omitempty"` // per-phase LLM timeout override
+	SessionReuse   bool     `yaml:"session_reuse,omitempty"`   // reuse LLM session across feedback iterations
+	Inject         []string `yaml:"inject,omitempty"`          // paths to rules/skills to inject (e.g. "rules/security")
+	KBSections     []string `yaml:"kb_sections,omitempty"`     // KB section numbers to include (e.g. ["1", "2", "7"]); empty = all
 }
 
 // RateCardYAML mirrors llm.RateCard with yaml tags for fabric.yaml.
@@ -60,16 +60,16 @@ func (c *LLMConfig) EffectiveTimeoutSeconds() int {
 
 // CommandConfig holds commands shared by executor and reviewer.
 type CommandConfig struct {
-	Format                      string   `yaml:"format,omitempty"`
-	ProjectCheck                string   `yaml:"project_check,omitempty"`
-	CheckFilter                 []string `yaml:"error_filter,omitempty"`
-	SecurityCheck               string   `yaml:"security_check,omitempty"`
-	SkipProjectCheck            bool     `yaml:"skip_project_check,omitempty"`
-	SkipSecurityCheck           bool     `yaml:"skip_security_check,omitempty"`
+	Format                       string    `yaml:"format,omitempty"`
+	ProjectCheck                 string    `yaml:"project_check,omitempty"`
+	CheckFilter                  []string  `yaml:"error_filter,omitempty"`
+	SecurityCheck                string    `yaml:"security_check,omitempty"`
+	SkipProjectCheck             bool      `yaml:"skip_project_check,omitempty"`
+	SkipSecurityCheck            bool      `yaml:"skip_security_check,omitempty"`
 	TestTroubleshooting          []string  `yaml:"test_troubleshooting"`
 	UseWorktree                  bool      `yaml:"use_worktree,omitempty"`
 	ReviewFeedbackTimeoutSeconds int       `yaml:"review_feedback_timeout_seconds,omitempty"`
-	Fix                         FixConfig `yaml:"fix,omitempty"`
+	Fix                          FixConfig `yaml:"fix,omitempty"`
 }
 
 // FixConfig holds project-specific hints for the build-fix loop.
@@ -86,7 +86,7 @@ type FixConfig struct {
 const (
 	DefaultArchitectModel = "claude-opus-4-8"
 	DefaultFastModel      = "claude-haiku-4-5-20251001"
-	DefaultExecModel = "claude-opus-4-8"
+	DefaultExecModel      = "claude-opus-4-8"
 )
 
 // AllPhases lists every LLM pipeline phase.

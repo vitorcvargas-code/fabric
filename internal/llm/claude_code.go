@@ -16,12 +16,12 @@ import (
 
 // claudeResponse maps the fields we care about from `claude --output-format json`.
 type claudeResponse struct {
-	Result     string                        `json:"result"`
-	SessionID  string                        `json:"session_id"`
-	IsError    bool                          `json:"is_error"`
-	DurationMs int64                         `json:"duration_ms"`
-	TotalCost  float64                       `json:"total_cost_usd"`
-	ModelUsage map[string]json.RawMessage    `json:"modelUsage"`
+	Result     string                     `json:"result"`
+	SessionID  string                     `json:"session_id"`
+	IsError    bool                       `json:"is_error"`
+	DurationMs int64                      `json:"duration_ms"`
+	TotalCost  float64                    `json:"total_cost_usd"`
+	ModelUsage map[string]json.RawMessage `json:"modelUsage"`
 	Usage      struct {
 		InputTokens              int `json:"input_tokens"`
 		CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
@@ -175,7 +175,6 @@ func (b *ClaudeCodeDriver) callWithOpts(prompt string, opts callOptions, context
 	} else {
 		cmd.Stderr = &stderr
 	}
-
 
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
