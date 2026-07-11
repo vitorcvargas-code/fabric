@@ -45,10 +45,11 @@ type ClaudeCodeDriver struct {
 	thinking        string // passed as --thinking (values: enabled, adaptive, disabled)
 	workDir         string // if set, run claude from this dir instead of temp dir
 	verbose         bool   // tee stderr to terminal for live tool-call feedback
+	useBare         bool   // pass --bare (fewer tokens, but requires an API key)
 }
 
 func NewClaudeCodeDriver(model string) *ClaudeCodeDriver {
-	return &ClaudeCodeDriver{model: model, timeout: 10 * time.Minute}
+	return &ClaudeCodeDriver{model: model, timeout: 10 * time.Minute, useBare: true}
 }
 
 // SetVerbose enables live stderr output from the claude subprocess
@@ -81,6 +82,12 @@ func (b *ClaudeCodeDriver) SetThinking(v string) {
 	b.thinking = v
 }
 
+// SetBare toggles --bare mode. Off runs on a Claude subscription login (no API
+// key) at the cost of higher token usage; see claudeInvokeArgs.
+func (b *ClaudeCodeDriver) SetBare(v bool) {
+	b.useBare = v
+}
+
 func (b *ClaudeCodeDriver) RequestedModel() string {
 	return b.model
 }
@@ -111,14 +118,15 @@ func (b *ClaudeCodeDriver) callWithOpts(prompt string, opts callOptions, context
 	// context, hooks, auto-memory). Verified with E2E comparison (2026-06-28):
 	//   with --bare:    plan 135K tokens, exec 18K tokens
 	//   without --bare: plan 369K tokens, exec 264K tokens
-	// No worktree or in-place rename is needed.
+	// Bare requires an API key; disable it (llm.use_bare: false) to run on a
+	// subscription login. No worktree or in-place rename is needed.
 	sp, permCleanup, err := scopedSettingsFor(b.workDir)
 	if err != nil {
 		return Response{}, fmt.Errorf("scoped settings: %w", err)
 	}
 	defer permCleanup()
 
-	args := claudeInvokeArgs(sp)
+	args := claudeInvokeArgs(sp, b.useBare)
 	if b.model != "" {
 		args = append(args, "--model", stripProviderPrefix(b.model))
 	}
@@ -182,10 +190,10 @@ func (b *ClaudeCodeDriver) callWithOpts(prompt string, opts callOptions, context
 			if jsonErr := json.Unmarshal(stdout.Bytes(), &cr); jsonErr == nil && cr.Result != "" {
 				msg := cr.Result
 				if strings.Contains(msg, "Not logged in") {
-					if settings := claudeSettingsPath(); settings != "" {
-						msg += fmt.Sprintf(" (using --bare with %s — check apiKeyHelper)", settings)
+					if b.useBare {
+						msg += " (bare mode needs an API key — set apiKeyHelper/ANTHROPIC_API_KEY in ~/.claude/settings.json, or set llm.use_bare: false to use a subscription login)"
 					} else {
-						msg += " (set CLAUDE_SETTINGS or run claude /login; ensure ~/.claude/settings.json exists)"
+						msg += " (run claude /login to authenticate the subscription)"
 					}
 				}
 				if b.thinking != "" && strings.Contains(msg, "unknown flag") && strings.Contains(msg, "thinking") {

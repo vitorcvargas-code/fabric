@@ -289,6 +289,9 @@ func (c *Context) NewDriver(p persona.Persona) (llm.Driver, error) {
 	if isc, ok := d.(llm.IsolateSessionConfigurable); ok {
 		isc.SetIsolateSessions(true)
 	}
+	if bc, ok := d.(llm.BareConfigurable); ok && c.Config.LLM.UseBare != nil {
+		bc.SetBare(*c.Config.LLM.UseBare)
+	}
 
 	if needsWorkDir(p.Name) {
 		if wc, ok := d.(llm.WorkDirConfigurable); ok {

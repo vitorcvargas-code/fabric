@@ -63,6 +63,12 @@ type VerboseConfigurable interface {
 	SetVerbose(v bool)
 }
 
+// BareConfigurable is implemented by drivers that can toggle --bare mode.
+// Off trades higher token usage for subscription-login auth (no API key).
+type BareConfigurable interface {
+	SetBare(v bool)
+}
+
 // CostEstimatorConfigurable is implemented by drivers that accept an
 // external cost estimator (e.g. pi with provider rate cards).
 type CostEstimatorConfigurable interface {

@@ -28,6 +28,7 @@ type LLMConfig struct {
 	Inject         []string                  `yaml:"inject,omitempty"`       // global: rules/skills injected into every phase prompt
 	KBSections     []string                  `yaml:"kb_sections,omitempty"`   // global: KB sections to include (empty = all)
 	Phases         map[string]PhaseLLMConfig `yaml:"phases,omitempty"`
+	UseBare        *bool                     `yaml:"use_bare,omitempty"` // nil/true: pass --bare (needs API key); false: subscription login, more tokens
 	TimeoutSeconds int                       `yaml:"timeout_seconds,omitempty"`
 	ModelPricing   map[string]RateCardYAML   `yaml:"model_pricing,omitempty"`
 }
@@ -83,9 +84,9 @@ type FixConfig struct {
 
 // Default model constants.
 const (
-	DefaultArchitectModel = "deepseek-v4-pro-claude"
+	DefaultArchitectModel = "claude-opus-4-8"
 	DefaultFastModel      = "claude-haiku-4-5-20251001"
-	DefaultExecModel = "deepseek-v4-pro-claude"
+	DefaultExecModel = "claude-opus-4-8"
 )
 
 // AllPhases lists every LLM pipeline phase.

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 )
 
-// claudeSettingsPath returns the Claude Code settings file used for auth in
-// --bare mode. Precedence: CLAUDE_SETTINGS env, then ~/.claude/settings.json.
+// claudeSettingsPath returns the Claude Code settings file used for auth.
+// Precedence: CLAUDE_SETTINGS env, then ~/.claude/settings.json.
 func claudeSettingsPath() string {
 	if p := os.Getenv("CLAUDE_SETTINGS"); p != "" {
 		if _, err := os.Stat(p); err == nil {
@@ -28,12 +28,21 @@ func claudeSettingsPath() string {
 }
 
 // claudeInvokeArgs builds base CLI args for a non-interactive claude call.
-func claudeInvokeArgs(scopedSettings string) []string {
-	return []string{
-		"--print", "--bare", "--output-format", "json",
+// bare mode skips loading .claude/ from CWD (CLAUDE.md, rules, skills, hooks) —
+// far fewer tokens, but it also skips the interactive OAuth login, so it needs an
+// API key (apiKeyHelper or env in settings.json). Disable it to run on a Claude
+// subscription login at the cost of higher token usage.
+func claudeInvokeArgs(scopedSettings string, useBare bool) []string {
+	args := []string{"--print"}
+	if useBare {
+		args = append(args, "--bare")
+	}
+	args = append(args,
+		"--output-format", "json",
 		"--disallowedTools", "Write, Edit, NotebookEdit",
 		"--settings", scopedSettings,
-	}
+	)
+	return args
 }
 
 // scopedSettingsFor builds a temp settings.json with permissions scoped to

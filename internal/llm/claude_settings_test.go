@@ -25,7 +25,7 @@ func TestClaudeInvokeArgs_WithScopedPermissions(t *testing.T) {
 	if err := os.WriteFile(scopedFile, []byte(`{}`), 0644); err != nil {
 		t.Fatal(err)
 	}
-	args := claudeInvokeArgs(scopedFile)
+	args := claudeInvokeArgs(scopedFile, true)
 	want := []string{"--print", "--bare", "--output-format", "json",
 		"--disallowedTools", "Write, Edit, NotebookEdit",
 		"--settings", scopedFile}
@@ -39,11 +39,27 @@ func TestClaudeInvokeArgs_WithScopedPermissions(t *testing.T) {
 	}
 }
 
+func TestClaudeInvokeArgs_BareDisabled_OmitsBareFlag(t *testing.T) {
+	scopedFile := filepath.Join(t.TempDir(), "scoped-perms.json")
+	if err := os.WriteFile(scopedFile, []byte(`{}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	args := claudeInvokeArgs(scopedFile, false)
+	for _, a := range args {
+		if a == "--bare" {
+			t.Fatalf("--bare present but use_bare is false: %v", args)
+		}
+	}
+	if args[0] != "--print" {
+		t.Fatalf("expected --print first, got %v", args)
+	}
+}
+
 func TestClaudeInvokeArgs_AlwaysUsesSettings(t *testing.T) {
 	// With worktree isolation, scopedSettings is always provided.
 	// Verify it's always passed as --settings.
 	settingsPath := "/tmp/fabric-test-settings.json"
-	args := claudeInvokeArgs(settingsPath)
+	args := claudeInvokeArgs(settingsPath, true)
 	for _, a := range args {
 		if a == "--dangerously-skip-permissions" {
 			t.Fatal("--dangerously-skip-permissions present but should not be; scoped settings always used")
