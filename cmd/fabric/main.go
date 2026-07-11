@@ -199,7 +199,7 @@ func fixHelp() string {
 │
 │  fabric fix
 │  fabric fix --dry-run
-│  fabric fix --model deepseek-v4-flash-claude
+│  fabric fix --model claude-sonnet-4-6
 │
 │  Flags
 │    --config <path>   Path to fabric.yaml
@@ -289,4 +289,3 @@ func pipelineHelp() string {
 │
 ╰───────────────────────────────────────────────────────────`
 }
-

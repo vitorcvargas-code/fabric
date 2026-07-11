@@ -10,7 +10,7 @@ type Metrics struct {
 	CacheReadInputTokens     int // prompt cache read
 	OutputTokens             int
 	CostUSD                  float64
-	Calls                    int // number of LLM subprocesses summed into this metric
+	Calls                    int    // number of LLM subprocesses summed into this metric
 	RequestedModel           string // --model value passed to the driver
 	Model                    string // model reported by the provider after the call
 	SessionID                string // claude session id when using session resume
@@ -61,6 +61,12 @@ type ThinkingConfigurable interface {
 // subprocess output (tool calls, thinking) to stderr for progress feedback.
 type VerboseConfigurable interface {
 	SetVerbose(v bool)
+}
+
+// BareConfigurable is implemented by drivers that can toggle --bare mode.
+// Off trades higher token usage for subscription-login auth (no API key).
+type BareConfigurable interface {
+	SetBare(v bool)
 }
 
 // CostEstimatorConfigurable is implemented by drivers that accept an

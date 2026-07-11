@@ -150,8 +150,11 @@ func renderDefaultConfig(projectName, checkCmd, formatCmd string) string {
 
 llm:
   driver: claude-code
-  model: deepseek-v4-pro-claude
+  model: claude-opus-4-8
   timeout_seconds: 900
+  # use_bare: true skips loading .claude/ (fewer tokens) but needs an API key.
+  # Set false to run on a Claude subscription login at higher token usage.
+  use_bare: true
 
   phases:
     compress:
@@ -163,18 +166,18 @@ llm:
       session_reuse: true
       kb_sections: ["1", "2", "3", "7"]
     exec_create:
-      model: deepseek-v4-pro-claude
+      model: claude-opus-4-8
       thinking: enabled
       session_reuse: true
     test:
-      model: deepseek-v4-flash-claude
+      model: claude-sonnet-4-6
       thinking: disabled
       session_reuse: true
       kb_sections: ["1", "2", "3", "7"]
     fix:
-      model: deepseek-v4-flash-claude
+      model: claude-sonnet-4-6
     review:
-      model: deepseek-v4-flash-claude
+      model: claude-sonnet-4-6
       thinking: disabled
 
 command:

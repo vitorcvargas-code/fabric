@@ -25,11 +25,11 @@ func All() []Persona {
 	return []Persona{
 		{Name: PhaseCompress, Prompt: CompressorPrompt, Model: "claude-haiku-4-5-20251001", Thinking: "", Timeout: 120},
 		{Name: PhaseAugment, Prompt: AugmenterPrompt, Model: "claude-haiku-4-5-20251001", Thinking: "", Timeout: 120},
-		{Name: PhaseArchitect, Prompt: ArchitectPrompt, Model: "deepseek-v4-pro-claude", Thinking: "disabled", Timeout: 600},
-		{Name: PhaseExec, Prompt: ExecutorPrompt, Model: "deepseek-v4-pro-claude", Thinking: "enabled", Timeout: 900},
-		{Name: PhaseTest, Prompt: TesterPrompt, Model: "deepseek-v4-pro-claude", Thinking: "disabled", Timeout: 600},
-		{Name: PhaseFix, Prompt: FixerPrompt, Model: "deepseek-v4-flash-claude", Thinking: "enabled", Timeout: 600},
-		{Name: PhaseReview, Prompt: ReviewerPrompt, Model: "deepseek-v4-flash-claude", Thinking: "disabled", Timeout: 600},
+		{Name: PhaseArchitect, Prompt: ArchitectPrompt, Model: "claude-opus-4-8", Thinking: "disabled", Timeout: 600},
+		{Name: PhaseExec, Prompt: ExecutorPrompt, Model: "claude-opus-4-8", Thinking: "enabled", Timeout: 900},
+		{Name: PhaseTest, Prompt: TesterPrompt, Model: "claude-opus-4-8", Thinking: "disabled", Timeout: 600},
+		{Name: PhaseFix, Prompt: FixerPrompt, Model: "claude-sonnet-4-6", Thinking: "enabled", Timeout: 600},
+		{Name: PhaseReview, Prompt: ReviewerPrompt, Model: "claude-sonnet-4-6", Thinking: "disabled", Timeout: 600},
 	}
 }
 
@@ -102,7 +102,6 @@ Respond ONLY with this JSON — no markdown, no explanation:
    "strategy": "unit or integration + what it covers"}],
  "risks": ["verifiable risks — nothing speculative"]}`
 
-
 const ExecutorPrompt = `You are a file writer. Output ONLY files in this format:
 
 === FILE: path/to/File.kt ===
@@ -147,7 +146,6 @@ package br.com.ipago.ifpholderplatform.domain.shared
 
 object Bar { const val Y = 42 }`
 
-
 const TesterPrompt = `You are a test writer. Output ONLY test files in this format:
 
 === FILE: path/to/TypeUnderTestTest.kt ===
@@ -183,7 +181,6 @@ class TypeUnderTestTest {
 4. Name: {TypeUnderTest}Test or {Feature}IT.
 5. NEVER output markdown fences, notes, or explanations. Files only.
 6. EVERY file MUST start with "=== FILE: <path> ===".`
-
 
 const FixerPrompt = `You are a build-fix surgeon. You receive filtered build output — compiler
 errors, test failures, and stack traces. Find and fix ROOT CAUSES, not

@@ -61,7 +61,7 @@ project:
 
 llm:
   driver: claude-code
-  model: deepseek-v4-pro-claude                # default for all phases
+  model: claude-opus-4-8                # default for all phases
 
   # Global inject: rules/skills applied to EVERY phase prompt.
   # Per-phase inject in phases.<name>.inject is appended (not replaced).
@@ -89,7 +89,7 @@ llm:
       timeout_seconds: 120
 
     architect:                                  # implementation plan generation
-      model: deepseek-v4-pro-claude             # reasoning model
+      model: claude-opus-4-8             # reasoning model
       thinking: disabled                        # enabled | adaptive | disabled
       timeout_seconds: 600
       inject:                                   # appended to global inject
@@ -98,24 +98,24 @@ llm:
 
     # ── exec pipeline ─────────────────────────────────────────────
     exec_create:                                # code + file generation
-      model: deepseek-v4-pro-claude
+      model: claude-opus-4-8
       thinking: enabled                         # enabled | adaptive | disabled
       timeout_seconds: 900                      # large plans need more time
 
     test:                                       # test generation
-      model: deepseek-v4-pro-claude
+      model: claude-opus-4-8
       thinking: disabled                        # enabled | adaptive | disabled
       timeout_seconds: 300
 
     # ── fix ────────────────────────────────────────────────
     fix:                                        # build error resolution
-      model: deepseek-v4-flash-claude
+      model: claude-sonnet-4-6
       thinking: enabled                         # enabled | adaptive | disabled
       timeout_seconds: 600
 
     # ── review pipeline ───────────────────────────────────────────
     review:                                     # semantic validation
-      model: deepseek-v4-flash-claude
+      model: claude-sonnet-4-6
       thinking: disabled                        # enabled | adaptive | disabled
       timeout_seconds: 600
 
