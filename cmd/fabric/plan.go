@@ -56,6 +56,10 @@ func runPlan(args []string) error {
 		return err
 	}
 
+	if opts.inPath != "" {
+		return runPlanFeedback(opts, ctx, root, kbContent, manualContent)
+	}
+
 	totalStart := time.Now()
 	var phaseMetrics []phaseMetric
 	rawTask := opts.rawInput
@@ -107,7 +111,7 @@ func runPlan(args []string) error {
 			fmt.Fprintf(os.Stderr, "fabric: compressor warning (non-fatal): %v\n", err)
 		} else {
 			compressedTask = compResult.Task.Format()
-fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f, %v\n", float64(len(compressorInput))/1024, float64(len(compressedTask))/1024, compResult.Metrics.TotalInputTokens(), compResult.Metrics.OutputTokens, compResult.Metrics.CostUSD, compLatency.Round(time.Millisecond))
+			fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f, %v\n", float64(len(compressorInput))/1024, float64(len(compressedTask))/1024, compResult.Metrics.TotalInputTokens(), compResult.Metrics.OutputTokens, compResult.Metrics.CostUSD, compLatency.Round(time.Millisecond))
 			phaseMetrics = append(phaseMetrics, phaseMetric{
 				name: "compress", model: actualModel(compResult.Metrics),
 				tokensIn: compResult.Metrics.TotalInputTokens(), tokensOut: compResult.Metrics.OutputTokens,
@@ -151,7 +155,7 @@ fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f,
 				tokensIn: augMetrics.TotalInputTokens(), tokensOut: augMetrics.OutputTokens,
 				cost: augMetrics.CostUSD, latency: augLatency,
 			})
-				fmt.Fprintf(os.Stderr, "fabric: [augment] %d in/%d out, $%.4f, %v\n", augMetrics.TotalInputTokens(), augMetrics.OutputTokens, augMetrics.CostUSD, augLatency.Round(time.Millisecond))
+			fmt.Fprintf(os.Stderr, "fabric: [augment] %d in/%d out, $%.4f, %v\n", augMetrics.TotalInputTokens(), augMetrics.OutputTokens, augMetrics.CostUSD, augLatency.Round(time.Millisecond))
 			if !opts.autoApprove && ar.HasQuestions && len(ar.Questions) > 0 {
 				answers = augmenter.PresentQuestions(ar.Questions)
 				resolveStart := time.Now()
@@ -166,7 +170,7 @@ fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f,
 						tokensIn: resolveMetrics.TotalInputTokens(), tokensOut: resolveMetrics.OutputTokens,
 						cost: resolveMetrics.CostUSD, latency: time.Since(resolveStart),
 					})
-						fmt.Fprintf(os.Stderr, "fabric: [augment resolve] %d in/%d out, $%.4f, %v\n", resolveMetrics.TotalInputTokens(), resolveMetrics.OutputTokens, resolveMetrics.CostUSD, time.Since(resolveStart).Round(time.Millisecond))
+					fmt.Fprintf(os.Stderr, "fabric: [augment resolve] %d in/%d out, $%.4f, %v\n", resolveMetrics.TotalInputTokens(), resolveMetrics.OutputTokens, resolveMetrics.CostUSD, time.Since(resolveStart).Round(time.Millisecond))
 				}
 			}
 			if len(ar.SuccessCriteria) == 0 && len(ar.Questions) > 0 {
@@ -192,6 +196,7 @@ fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f,
 	var archPlan *architect.Plan
 	var planApproved bool
 	archFeedback := ""
+	var planModel, planSessionID string
 
 	// Session reuse: create driver + session once, reuse across feedback iterations.
 	archPhaseCfg := cfg.cfg.LLM.Phases["architect"]
@@ -229,6 +234,7 @@ fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f,
 		archStart := time.Now()
 
 		if sessionRunner != nil {
+			planModel = sessionModel
 			if archFeedback == "" {
 				stop, done := spinner(sessionModel, "architect", "")
 				result, err = sessionRunner.Bootstrap()
@@ -245,11 +251,13 @@ fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f,
 			if err != nil {
 				return fmt.Errorf("architect driver: %w", err)
 			}
-			stop, done := spinner(pipeline.ModelName(archDrv), "architect", "")
+			planModel = pipeline.ModelName(archDrv)
+			stop, done := spinner(planModel, "architect", "")
 			result, err = architect.Run(archDrv, runCtx)
 			close(stop)
 			<-done
 		}
+		planSessionID = result.Metrics.SessionID
 		archLatency = time.Since(archStart)
 		if err != nil {
 			return fmt.Errorf("architect failed: %w", err)
@@ -261,15 +269,15 @@ fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f,
 			cost: result.Metrics.CostUSD, latency: archLatency,
 		})
 
-			fmt.Fprintf(os.Stderr, "fabric: [architect] %d in/%d out, $%.4f, %v\n", result.Metrics.TotalInputTokens(), result.Metrics.OutputTokens, result.Metrics.CostUSD, archLatency.Round(time.Millisecond))
+		fmt.Fprintf(os.Stderr, "fabric: [architect] %d in/%d out, $%.4f, %v\n", result.Metrics.TotalInputTokens(), result.Metrics.OutputTokens, result.Metrics.CostUSD, archLatency.Round(time.Millisecond))
 		archPlan = result.Plan
 		if len(confirmedSC) > 0 {
 			archPlan.SuccessCriteria = confirmedSC
 		}
 
 		fieldIssues := plan.ValidateFields(archPlan)
-			pathIssues := plan.ValidatePaths(archPlan, root)
-			issues := append(fieldIssues, pathIssues...)
+		pathIssues := plan.ValidatePaths(archPlan, root)
+		issues := append(fieldIssues, pathIssues...)
 		if msg := plan.Format(issues); msg != "" {
 			fmt.Fprint(os.Stderr, msg)
 		}
@@ -327,6 +335,12 @@ fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f,
 		if jsonOut != "" {
 			os.WriteFile(opts.outPath, []byte(jsonOut+"\n"), 0644)
 		}
+		writePlanSession(opts.outPath, planSession{
+			SessionID:       planSessionID,
+			Model:           planModel,
+			OriginalTask:    archCtx.Task,
+			SuccessCriteria: confirmedSC,
+		})
 	}
 
 	totalLatency := time.Since(totalStart)
@@ -347,6 +361,115 @@ fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f,
 		"total:", len(phaseMetrics), totalIn, totalOut, totalCost, totalLatency.Round(time.Millisecond))
 	fmt.Fprintf(os.Stderr, "──────────────────────────────────────────────\n")
 
+	return nil
+}
+
+// runPlanFeedback revises an existing plan from feedback without re-running the
+// compressor and augmenter. It resumes the original architect session when the
+// provider still holds it and the model is unchanged; otherwise it rebuilds a
+// fresh plan seeded with the original task and prior plan.
+func runPlanFeedback(opts planOpts, ctx *pipeline.Context, root string, kb, manual []byte) error {
+	feedback, err := resolveFeedback(opts)
+	if err != nil {
+		return err
+	}
+
+	inPath := filepath.Join(ctx.Orig, opts.inPath)
+	priorPlan, _, err := loadPlan(inPath)
+	if err != nil {
+		return fmt.Errorf("loading plan %q: %w", opts.inPath, err)
+	}
+	sess, _ := loadPlanSession(inPath)
+
+	archDrv, err := ctx.NewDriver(*persona.ByName(persona.PhaseArchitect))
+	if err != nil {
+		return fmt.Errorf("architect driver: %w", err)
+	}
+	model := pipeline.ModelName(archDrv)
+
+	result, err := reviseWithFeedback(archDrv, model, sess, priorPlan, feedback, kb, manual, ctx)
+	if err != nil {
+		return err
+	}
+
+	archPlan := result.Plan
+	if len(sess.SuccessCriteria) > 0 {
+		archPlan.SuccessCriteria = sess.SuccessCriteria
+	}
+	if err := certifyPlan(archPlan, root, opts.execReady); err != nil {
+		return err
+	}
+	os.WriteFile(filepath.Join(root, "plan.html"), []byte(planToHTML(archPlan)), 0644)
+
+	out, err := formatPlan(archPlan, opts.format)
+	if err != nil {
+		return fmt.Errorf("formatting output: %w", err)
+	}
+	fmt.Println(out)
+
+	outTarget := opts.outPath
+	if outTarget == "" {
+		outTarget = opts.inPath // refine the plan in place when no --out given
+	}
+	if jsonOut, _ := formatPlan(archPlan, "json"); jsonOut != "" {
+		os.WriteFile(outTarget, []byte(jsonOut+"\n"), 0644)
+	}
+	writePlanSession(outTarget, planSession{
+		SessionID:       result.Metrics.SessionID,
+		Model:           model,
+		OriginalTask:    sess.OriginalTask,
+		SuccessCriteria: archPlan.SuccessCriteria,
+	})
+	return nil
+}
+
+// reviseWithFeedback resumes the architect session when possible, falling back
+// to a fresh run when there is no resumable session or the resume fails.
+func reviseWithFeedback(archDrv llm.Driver, model string, sess planSession, priorPlan *architect.Plan, feedback string, kb, manual []byte, ctx *pipeline.Context) (architect.Result, error) {
+	sd, canResume := archDrv.(llm.SessionDriver)
+	if canResume && sess.SessionID != "" && sess.Model == model {
+		stop, done := spinner(model, "architect", "resume")
+		result, err := architect.ResumeSession(sd, sess.SessionID, warmResumeTask(feedback))
+		close(stop)
+		<-done
+		if err == nil {
+			return result, nil
+		}
+		fmt.Fprintf(os.Stderr, "fabric: resume failed (%v) — rebuilding a fresh plan\n", err)
+	}
+
+	archCtx := architect.Context{
+		Task:            coldRebuildTask(sess, priorPlan, feedback),
+		KB:              kb,
+		Manual:          manual,
+		InjectContent:   ctx.InjectContent(persona.PhaseArchitect),
+		SuccessCriteria: sess.SuccessCriteria,
+	}
+	stop, done := spinner(model, "architect", "")
+	result, err := architect.Run(archDrv, archCtx)
+	close(stop)
+	<-done
+	if err != nil {
+		return architect.Result{}, fmt.Errorf("architect failed: %w", err)
+	}
+	return result, nil
+}
+
+// certifyPlan runs the deterministic field and path validators, printing issues
+// and failing when --exec-ready is set and errors remain.
+func certifyPlan(archPlan *architect.Plan, root string, execReady bool) error {
+	issues := append(plan.ValidateFields(archPlan), plan.ValidatePaths(archPlan, root)...)
+	if msg := plan.Format(issues); msg != "" {
+		fmt.Fprint(os.Stderr, msg)
+	}
+	if plan.HasErrors(issues) {
+		fmt.Fprintf(os.Stderr, "fabric: plan has %d validation error(s)\n", plan.ErrorCount(issues))
+		if execReady {
+			return fmt.Errorf("plan failed exec-ready validation (%d error(s))", plan.ErrorCount(issues))
+		}
+	} else if len(issues) == 0 {
+		fmt.Fprintf(os.Stderr, "fabric: plan certified exec-ready\n")
+	}
 	return nil
 }
 
@@ -487,6 +610,9 @@ type planOpts struct {
 	issueKey      string
 	linearKey     string
 	outPath       string
+	inPath        string
+	feedback      string
+	feedbackFile  string
 }
 
 func parsePlanFlags(args []string) (planOpts, error) {
@@ -531,6 +657,24 @@ func parsePlanFlags(args []string) (planOpts, error) {
 			}
 			i++
 			opts.outPath = args[i]
+		case "--in":
+			if i+1 >= len(args) {
+				return opts, fmt.Errorf("--in requires a plan file path")
+			}
+			i++
+			opts.inPath = args[i]
+		case "--feedback":
+			if i+1 >= len(args) {
+				return opts, fmt.Errorf("--feedback requires text")
+			}
+			i++
+			opts.feedback = args[i]
+		case "--feedback-file":
+			if i+1 >= len(args) {
+				return opts, fmt.Errorf("--feedback-file requires a path")
+			}
+			i++
+			opts.feedbackFile = args[i]
 		case "--exec-ready":
 			opts.execReady = true
 		default:
@@ -549,8 +693,8 @@ func parsePlanFlags(args []string) (planOpts, error) {
 	if opts.rawInput == "" && opts.linearKey != "" {
 		opts.rawInput = opts.linearKey
 	}
-	if opts.rawInput == "" && opts.issueKey == "" && opts.linearKey == "" {
-		return opts, fmt.Errorf("plan requires a task description, --issue, or --linear flag\n\nUsage: fabric plan \"<task>\"\n       fabric plan --issue SWACCPP-722\n       fabric plan --linear FAB-12")
+	if opts.inPath == "" && opts.rawInput == "" && opts.issueKey == "" && opts.linearKey == "" {
+		return opts, fmt.Errorf("plan requires a task description, --issue, --linear, or --in flag\n\nUsage: fabric plan \"<task>\"\n       fabric plan --issue SWACCPP-722\n       fabric plan --linear FAB-12\n       fabric plan --in plan.json --feedback \"<text>\"")
 	}
 	return opts, nil
 }
