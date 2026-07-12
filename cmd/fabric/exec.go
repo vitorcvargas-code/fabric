@@ -47,7 +47,7 @@ func runExec(args []string) error {
 		return err
 	}
 
-	p, kb, err := loadPlan(filepath.Join(ctx.Orig, opts.planFile))
+	p, kb, err := loadPlan(resolvePlanPath(ctx.Orig, opts.planFile))
 	if err != nil {
 		return err
 	}

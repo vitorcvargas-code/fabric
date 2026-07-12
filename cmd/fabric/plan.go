@@ -710,10 +710,37 @@ func parsePlanFlags(args []string) (planOpts, error) {
 	return opts, nil
 }
 
+// resolvePlanPath resolves a plan path the same way --out is written: an
+// absolute path is honoured as-is, a relative one is taken against the repo
+// root. Without this, filepath.Join would fold an absolute path into root and
+// read from the wrong place while it was written to the absolute path as given.
+func resolvePlanPath(root, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(root, path)
+}
+
 func resolveFile(paths ...string) []byte {
+	exe, _ := os.Executable()
+	return resolveFileFrom(exe, paths...)
+}
+
+// resolveFileFrom looks for each path next to the binary's real directory, then
+// relative to the cwd. exePath is resolved through any symlink first: an install
+// like ~/.local/bin/fabric symlinked into the repo would otherwise anchor bundled
+// reference files (skills/…) to the symlink's dir instead of the real repo.
+func resolveFileFrom(exePath string, paths ...string) []byte {
+	exeDir := ""
+	if exePath != "" {
+		if resolved, err := filepath.EvalSymlinks(exePath); err == nil {
+			exePath = resolved
+		}
+		exeDir = filepath.Dir(exePath)
+	}
 	for _, p := range paths {
-		if exe, err := os.Executable(); err == nil {
-			if content, err := os.ReadFile(filepath.Join(filepath.Dir(exe), p)); err == nil {
+		if exeDir != "" {
+			if content, err := os.ReadFile(filepath.Join(exeDir, p)); err == nil {
 				return content
 			}
 		}
