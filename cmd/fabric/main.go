@@ -118,16 +118,26 @@ func planHelp() string {
 │  fabric plan "add a person deactivation endpoint"
 │  fabric plan "add idempotency" --format json -y
 │  fabric plan --issue SWACCPP-722 --out plan.json
+│  fabric plan --in plan.json --feedback "batch the writes"
 │
 │  Flags
-│    --config <path>   Path to fabric.yaml
-│    --model  <model>  Override architect model
-│    --format <fmt>    json | yaml (default: yaml)
-│    --out    <path>   Save plan to file
-│    --issue  <KEY>    Fetch Jira issue as task input
-│    --linear <KEY>    Fetch Linear issue as task input (needs LINEAR_API_KEY)
-│    --exec-ready      Fail if plan has validation errors
-│    -y, --yes         Skip approval and feedback prompts
+│    --config <path>       Path to fabric.yaml
+│    --model  <model>      Override architect model
+│    --format <fmt>        json | yaml (default: yaml)
+│    --out    <path>       Save plan to file
+│    --issue  <KEY>        Fetch Jira issue as task input
+│    --linear <KEY>        Fetch Linear issue as task input (needs LINEAR_API_KEY)
+│    --in     <plan.json>  Revise an existing plan (with --feedback)
+│    --feedback <text>     Feedback to revise the --in plan
+│    --feedback-file <p>   Read feedback from a file instead
+│    --exec-ready          Fail if plan has validation errors
+│    -y, --yes             Skip approval and feedback prompts
+│
+│  Revise            --in + --feedback revises a plan without re-running the
+│                    compressor/augmenter. Resumes the original architect
+│                    session (from plan.session.json) when the model is
+│                    unchanged; otherwise rebuilds from the original task.
+│                    Writes back to --out, or to the --in file in place.
 │
 │  Compressor        Fires when input >500 chars stdin, >2000 char task,
 │                    or Jira JSON. Extracts signal into structured YAML.
@@ -244,6 +254,9 @@ func reviewHelp() string {
 │  Circuit breaker    Final pass: [r]eplan / [f]eedback — 1 more fix / [a]ccept.
 │  Resume             State saved to plan.review.json after each pass.
 │                     Re-running detects the file and offers resume or restart.
+│  Non-interactive    With no TTY (pipe/CI/agent) every gate takes its safe
+│                     default without blocking: pass 1 and the circuit breaker
+│                     auto-fix/accept, the empty-fix gate skips. Safe unattended.
 │
 ╰───────────────────────────────────────────────────────────`
 }

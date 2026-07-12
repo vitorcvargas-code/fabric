@@ -221,10 +221,10 @@ func readStdin() (string, error) {
 
 func promptWithTimeout(promptText string, timeout time.Duration, defaultChoice string) string {
 	if !isStdinTerminal() {
-		// Pipe mode: read raw, no line editing.
-		var buf [256]byte
-		n, _ := os.Stdin.Read(buf[:])
-		return strings.TrimSpace(string(buf[:n]))
+		// Pipe mode: read a full line, no line editing. Reading a fixed-size
+		// buffer would truncate multi-line or long piped feedback.
+		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		return strings.TrimSpace(line)
 	}
 	fmt.Fprint(os.Stderr, promptText)
 	type result struct{ text string }
@@ -262,6 +262,17 @@ func promptForGuidance() string {
 
 func promptNoTimeout(promptText string) string {
 	return promptWithTimeout(promptText, 24*time.Hour, "")
+}
+
+// choiceOrDefault returns def without reading stdin when the session is not
+// interactive, so unattended runs never block on a prompt. The isTerminal
+// dependency is injected to keep the decision testable without touching
+// os.Stdin. Interactive sessions prompt as usual.
+func choiceOrDefault(isTerminal func() bool, promptText, def string) string {
+	if !isTerminal() {
+		return def
+	}
+	return promptNoTimeout(promptText)
 }
 
 // ── Plan loading ───────────────────────────────────────────────────────

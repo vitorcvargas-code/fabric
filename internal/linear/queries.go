@@ -37,6 +37,7 @@ type issueNode struct {
 	InverseRelations struct {
 		Nodes []relationNode `json:"nodes"`
 	} `json:"inverseRelations"`
+	Parent *parentNode `json:"parent"`
 }
 
 // relationNode is one "A blocks B"-style relation on an issue.
@@ -50,24 +51,38 @@ type relationNode struct {
 	} `json:"issue"`
 }
 
+// parentNode carries just enough of an issue's parent to tell whether the
+// parent is itself blocked. Linear's parent/child link is not a "blocks"
+// relation, so a subtask under a blocked story would otherwise report ready.
+type parentNode struct {
+	Identifier       string `json:"identifier"`
+	InverseRelations struct {
+		Nodes []relationNode `json:"nodes"`
+	} `json:"inverseRelations"`
+}
+
 func (n issueNode) toIssue() Issue {
+	blockers := incompleteBlockers(n.InverseRelations.Nodes)
+	if n.Parent != nil && len(incompleteBlockers(n.Parent.InverseRelations.Nodes)) > 0 {
+		blockers = append(blockers, n.Parent.Identifier)
+	}
 	return Issue{
-		Identifier: n.Identifier,
-		Title:      n.Title,
+		Identifier:  n.Identifier,
+		Title:       n.Title,
 		Description: n.Description,
-		Priority:   n.PriorityLabel,
-		StateName:  n.State.Name,
-		StateType:  n.State.Type,
-		Blockers:   incompleteBlockers(n),
+		Priority:    n.PriorityLabel,
+		StateName:   n.State.Name,
+		StateType:   n.State.Type,
+		Blockers:    blockers,
 	}
 }
 
-// incompleteBlockers returns identifiers of issues that block this one and are
-// not yet done. In Linear an "A blocks B" relation appears on B's
-// inverseRelations, with the blocker as the relation's `issue`.
-func incompleteBlockers(n issueNode) []string {
+// incompleteBlockers returns identifiers of issues that block via the given
+// relations and are not yet done. In Linear an "A blocks B" relation appears
+// on B's inverseRelations, with the blocker as the relation's `issue`.
+func incompleteBlockers(rels []relationNode) []string {
 	var out []string
-	for _, r := range n.InverseRelations.Nodes {
+	for _, r := range rels {
 		if r.Type != "blocks" {
 			continue
 		}
@@ -83,6 +98,7 @@ const issueFields = `
   identifier title description priorityLabel
   state { name type }
   inverseRelations { nodes { type issue { identifier state { type } } } }
+  parent { identifier inverseRelations { nodes { type issue { identifier state { type } } } } }
 `
 
 // FetchIssue loads a single issue by its human identifier (e.g. "FAB-12").
