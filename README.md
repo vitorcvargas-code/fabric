@@ -34,6 +34,11 @@ fabric review plan.json --dry-run                       # preview review finding
 fabric review plan.json                                 # review + fix loop
 ```
 
+When `review` runs without a TTY (piped, CI, or driven by an agent) every
+interactive gate takes its safe default without blocking — the first-pass and
+circuit-breaker gates proceed with auto-fix/accept and the empty-fix gate skips —
+so `fabric exec plan.json | fabric review` is safe to run unattended.
+
 Run `fabric help` for the full command reference, or `fabric help <command>` for details on a specific command.
 
 ### Linear as the work source
