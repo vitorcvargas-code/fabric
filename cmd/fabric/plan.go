@@ -365,6 +365,17 @@ func runPlan(args []string) error {
 }
 
 // runPlanFeedback revises an existing plan from feedback without re-running the
+// resolvePlanPath resolves a plan path the same way --out is written: an
+// absolute path is honoured as-is, a relative one is taken against the repo
+// root. Without this, filepath.Join would fold an absolute --in into root and
+// read from the wrong place while --out wrote to the absolute path.
+func resolvePlanPath(root, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(root, path)
+}
+
 // compressor and augmenter. It resumes the original architect session when the
 // provider still holds it and the model is unchanged; otherwise it rebuilds a
 // fresh plan seeded with the original task and prior plan.
@@ -374,7 +385,7 @@ func runPlanFeedback(opts planOpts, ctx *pipeline.Context, root string, kb, manu
 		return err
 	}
 
-	inPath := filepath.Join(ctx.Orig, opts.inPath)
+	inPath := resolvePlanPath(ctx.Orig, opts.inPath)
 	priorPlan, _, err := loadPlan(inPath)
 	if err != nil {
 		return fmt.Errorf("loading plan %q: %w", opts.inPath, err)

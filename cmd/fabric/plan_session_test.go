@@ -63,6 +63,16 @@ func TestResolveFeedback_InlineFileAndError(t *testing.T) {
 	}
 }
 
+func TestResolvePlanPath_AbsoluteHonouredRelativeJoined(t *testing.T) {
+	abs := filepath.Join(t.TempDir(), "plan.json")
+	if got := resolvePlanPath("/repo", abs); got != abs {
+		t.Errorf("absolute --in should be honoured as-is: got %q want %q", got, abs)
+	}
+	if got := resolvePlanPath("/repo", "plan.json"); got != filepath.FromSlash("/repo/plan.json") {
+		t.Errorf("relative --in should join the repo root: got %q", got)
+	}
+}
+
 func TestColdRebuildTask_CarriesTaskPlanAndFeedback(t *testing.T) {
 	sess := planSession{OriginalTask: "add health endpoint"}
 	prior := &architect.Plan{Summary: "first attempt"}
