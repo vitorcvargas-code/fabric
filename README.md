@@ -28,6 +28,7 @@ fabric exec plan.json | fabric review
 
 # Step by step with previews
 fabric plan "add a health check" -y --out plan.json   # generate the plan
+fabric plan --in plan.json --feedback "use a cached probe"  # revise without re-planning
 fabric exec plan.json --dry-run                         # preview files before writing
 fabric exec plan.json                                   # write for real
 fabric review plan.json --dry-run                       # preview review findings
@@ -38,6 +39,13 @@ When `review` runs without a TTY (piped, CI, or driven by an agent) every
 interactive gate takes its safe default without blocking — the first-pass and
 circuit-breaker gates proceed with auto-fix/accept and the empty-fix gate skips —
 so `fabric exec plan.json | fabric review` is safe to run unattended.
+
+`--in` + `--feedback` revises an existing plan without re-running the compressor
+and augmenter. It resumes the original architect session recorded in
+`plan.session.json` (so the knowledge base and persona are not re-sent) when the
+model is unchanged, and falls back to a fresh plan seeded with the original task
+if that session has expired. The revised plan is written to `--out`, or back to
+the `--in` file in place.
 
 Run `fabric help` for the full command reference, or `fabric help <command>` for details on a specific command.
 
@@ -216,6 +224,7 @@ graph TB
 
     subgraph Artifacts["Pipeline artifacts"]
         PJ["plan.json"]
+        PSJ["plan.session.json<br/>architect session id<br/>for --in feedback"]
         PRJ["plan.review.json<br/>resume state"]
         CODE["source files<br/>+ tests"]
     end

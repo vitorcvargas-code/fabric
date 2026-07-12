@@ -15,7 +15,7 @@ type Plan struct {
 	Summary          string      `json:"summary"            yaml:"summary"`
 	FilesToCreate    []FileEntry `json:"files_to_create"    yaml:"files_to_create"`
 	FilesToModify    []FileEntry `json:"files_to_modify"    yaml:"files_to_modify"`
-Tests            []TestEntry `json:"tests"              yaml:"tests"`
+	Tests            []TestEntry `json:"tests"              yaml:"tests"`
 	PatternsToFollow []string    `json:"patterns_to_follow" yaml:"patterns_to_follow"`
 	Risks            []string    `json:"risks"              yaml:"risks"`
 	SuccessCriteria  []string    `json:"success_criteria"   yaml:"success_criteria"`
@@ -103,6 +103,26 @@ func (r *SessionRunner) Bootstrap() (Result, error) {
 func (r *SessionRunner) Resume(task string) (Result, error) {
 	prompt := buildResumePrompt(task)
 	resp, err := r.session.CallResume(prompt)
+	if err != nil {
+		return Result{}, fmt.Errorf("architect resume: %w", err)
+	}
+	plan, err := parse(resp.Text)
+	if err != nil {
+		return Result{}, fmt.Errorf("parsing architect response: %w\nraw:\n%s", err, resp.Text)
+	}
+	return Result{Plan: plan, Metrics: resp.Metrics}, nil
+}
+
+// ResumeSession continues an architect conversation that was bootstrapped in an
+// earlier process, identified by its provider session id, sending only the
+// revised task. The provider still holds the persona, KB, and manual from the
+// original bootstrap, so they are not re-sent. Unlike SessionRunner.Resume this
+// needs no live in-memory session, which is what makes cross-process resume
+// (e.g. `fabric plan --in plan.json --feedback`) possible. Returns an error if
+// the provider can no longer resume the session (expired/pruned); callers should
+// fall back to a fresh Run.
+func ResumeSession(drv llm.SessionDriver, sessionID, task string) (Result, error) {
+	resp, err := drv.ResumeCall(buildResumePrompt(task), sessionID)
 	if err != nil {
 		return Result{}, fmt.Errorf("architect resume: %w", err)
 	}
