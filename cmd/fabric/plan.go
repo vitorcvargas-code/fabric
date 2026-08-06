@@ -710,17 +710,6 @@ func parsePlanFlags(args []string) (planOpts, error) {
 	return opts, nil
 }
 
-// resolvePlanPath resolves a plan path the same way --out is written: an
-// absolute path is honoured as-is, a relative one is taken against the repo
-// root. Without this, filepath.Join would fold an absolute path into root and
-// read from the wrong place while it was written to the absolute path as given.
-func resolvePlanPath(root, path string) string {
-	if filepath.IsAbs(path) {
-		return path
-	}
-	return filepath.Join(root, path)
-}
-
 func resolveFile(paths ...string) []byte {
 	exe, _ := os.Executable()
 	return resolveFileFrom(exe, paths...)

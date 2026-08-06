@@ -46,10 +46,13 @@ type ClaudeCodeDriver struct {
 	workDir         string // if set, run claude from this dir instead of temp dir
 	verbose         bool   // tee stderr to terminal for live tool-call feedback
 	useBare         bool   // pass --bare (fewer tokens, but requires an API key)
+	binary          string // CLI binary to invoke (default "claude"; deepseek uses "claude-pro" / "claude-flash")
+	skipModelFlag   bool   // when true, don't pass --model (the binary alias handles it via env vars)
+	costEstimator   CostEstimator // if set, used instead of claude's provider-reported cost
 }
 
 func NewClaudeCodeDriver(model string) *ClaudeCodeDriver {
-	return &ClaudeCodeDriver{model: model, timeout: 10 * time.Minute, useBare: true}
+	return &ClaudeCodeDriver{model: model, binary: "claude", timeout: 10 * time.Minute, useBare: true}
 }
 
 // SetVerbose enables live stderr output from the claude subprocess
@@ -86,6 +89,13 @@ func (b *ClaudeCodeDriver) SetThinking(v string) {
 // key) at the cost of higher token usage; see claudeInvokeArgs.
 func (b *ClaudeCodeDriver) SetBare(v bool) {
 	b.useBare = v
+}
+
+// SetCostEstimator sets a custom cost estimator. When set, it overrides the
+// provider-reported total_cost_usd with an estimate computed from token counts
+// and the configured rate cards (e.g. deepseek pricing vs Anthropic pricing).
+func (b *ClaudeCodeDriver) SetCostEstimator(e CostEstimator) {
+	b.costEstimator = e
 }
 
 func (b *ClaudeCodeDriver) RequestedModel() string {
@@ -127,7 +137,7 @@ func (b *ClaudeCodeDriver) callWithOpts(prompt string, opts callOptions, context
 	defer permCleanup()
 
 	args := claudeInvokeArgs(sp, b.useBare)
-	if b.model != "" {
+	if b.model != "" && !b.skipModelFlag {
 		args = append(args, "--model", stripProviderPrefix(b.model))
 	}
 	switch b.thinking {
@@ -166,7 +176,7 @@ func (b *ClaudeCodeDriver) callWithOpts(prompt string, opts callOptions, context
 		defer cancel()
 	}
 
-	cmd := exec.CommandContext(ctx, "claude", args...)
+	cmd := exec.CommandContext(ctx, b.binary, args...)
 	cmd.Dir = b.workDir
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stdout = &stdout
@@ -229,6 +239,12 @@ func (b *ClaudeCodeDriver) callWithOpts(prompt string, opts callOptions, context
 			b.model, actual)
 	}
 
+	costUSD := cr.TotalCost
+	if b.costEstimator != nil {
+		costUSD = b.costEstimator.EstimateCost(actual, cr.Usage.InputTokens,
+			cr.Usage.CacheCreationInputTokens, cr.Usage.CacheReadInputTokens, cr.Usage.OutputTokens)
+	}
+
 	return Response{
 		Text: cr.Result,
 		Metrics: Metrics{
@@ -237,7 +253,7 @@ func (b *ClaudeCodeDriver) callWithOpts(prompt string, opts callOptions, context
 			CacheCreationInputTokens: cr.Usage.CacheCreationInputTokens,
 			CacheReadInputTokens:     cr.Usage.CacheReadInputTokens,
 			OutputTokens:             cr.Usage.OutputTokens,
-			CostUSD:                  cr.TotalCost,
+			CostUSD:                  costUSD,
 			Calls:                    1,
 			RequestedModel:           b.model,
 			Model:                    actual,
