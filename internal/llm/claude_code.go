@@ -10,18 +10,19 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
 
 // claudeResponse maps the fields we care about from `claude --output-format json`.
 type claudeResponse struct {
-	Result     string                     `json:"result"`
-	SessionID  string                     `json:"session_id"`
-	IsError    bool                       `json:"is_error"`
-	DurationMs int64                      `json:"duration_ms"`
-	TotalCost  float64                    `json:"total_cost_usd"`
-	ModelUsage map[string]json.RawMessage `json:"modelUsage"`
+	Result     string                `json:"result"`
+	SessionID  string                `json:"session_id"`
+	IsError    bool                  `json:"is_error"`
+	DurationMs int64                 `json:"duration_ms"`
+	TotalCost  float64               `json:"total_cost_usd"`
+	ModelUsage map[string]modelUsage `json:"modelUsage"`
 	Usage      struct {
 		InputTokens              int `json:"input_tokens"`
 		CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
@@ -30,11 +31,31 @@ type claudeResponse struct {
 	} `json:"usage"`
 }
 
-func (cr *claudeResponse) model() string {
-	for name := range cr.ModelUsage {
-		return name
+// modelUsage is one model's share of a call. A single claude call can touch
+// several models (e.g. haiku for side tasks), so each is priced on its own.
+type modelUsage struct {
+	InputTokens              int     `json:"inputTokens"`
+	CacheCreationInputTokens int     `json:"cacheCreationInputTokens"`
+	CacheReadInputTokens     int     `json:"cacheReadInputTokens"`
+	OutputTokens             int     `json:"outputTokens"`
+	CostUSD                  float64 `json:"costUSD"`
+}
+
+// model names the model the call ran on: the requested one when claude used
+// it, else the first in sorted order — never Go's random map order.
+func (cr *claudeResponse) model(requested string) string {
+	if _, ok := cr.ModelUsage[stripProviderPrefix(requested)]; ok {
+		return stripProviderPrefix(requested)
 	}
-	return ""
+	names := make([]string, 0, len(cr.ModelUsage))
+	for name := range cr.ModelUsage {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		return ""
+	}
+	return names[0]
 }
 
 // ClaudeCodeDriver invokes the `claude` CLI as a subprocess.
@@ -42,10 +63,11 @@ type ClaudeCodeDriver struct {
 	model           string
 	isolateSessions bool
 	timeout         time.Duration
-	thinking        string // passed as --thinking (values: enabled, adaptive, disabled)
-	workDir         string // if set, run claude from this dir instead of temp dir
-	verbose         bool   // tee stderr to terminal for live tool-call feedback
-	useBare         bool   // pass --bare (fewer tokens, but requires an API key)
+	thinking        string        // passed as --thinking (values: enabled, adaptive, disabled)
+	workDir         string        // if set, run claude from this dir instead of temp dir
+	verbose         bool          // tee stderr to terminal for live tool-call feedback
+	useBare         bool          // pass --bare (fewer tokens, but requires an API key)
+	costEstimator   CostEstimator // rate card for models claude cannot price itself (llm.model_pricing)
 }
 
 func NewClaudeCodeDriver(model string) *ClaudeCodeDriver {
@@ -86,6 +108,12 @@ func (b *ClaudeCodeDriver) SetThinking(v string) {
 // key) at the cost of higher token usage; see claudeInvokeArgs.
 func (b *ClaudeCodeDriver) SetBare(v bool) {
 	b.useBare = v
+}
+
+// SetCostEstimator sets the rate card used to price models that have an entry
+// in it; any other model keeps claude's own figure (see priceCall).
+func (b *ClaudeCodeDriver) SetCostEstimator(e CostEstimator) {
+	b.costEstimator = e
 }
 
 func (b *ClaudeCodeDriver) RequestedModel() string {
@@ -222,7 +250,7 @@ func (b *ClaudeCodeDriver) callWithOpts(prompt string, opts callOptions, context
 		return Response{}, fmt.Errorf("claude error: %s", cr.Result)
 	}
 
-	actual := cr.model()
+	actual := cr.model(b.model)
 	if b.model != "" && actual != "" && !strings.EqualFold(stripProviderPrefix(b.model), actual) {
 		fmt.Fprintf(os.Stderr,
 			"fabric: warning: requested model %q but claude used %q (check ~/.claude/settings.json env aliases or quota fallback)\n",
@@ -237,13 +265,46 @@ func (b *ClaudeCodeDriver) callWithOpts(prompt string, opts callOptions, context
 			CacheCreationInputTokens: cr.Usage.CacheCreationInputTokens,
 			CacheReadInputTokens:     cr.Usage.CacheReadInputTokens,
 			OutputTokens:             cr.Usage.OutputTokens,
-			CostUSD:                  cr.TotalCost,
+			Cost:                     priceCall(&cr, b.model, b.costEstimator, isRoutedAwayFromAnthropic(anthropicBaseURL())),
 			Calls:                    1,
 			RequestedModel:           b.model,
 			Model:                    actual,
 			SessionID:                firstNonEmpty(cr.SessionID, opts.sessionID),
 		},
 	}, nil
+}
+
+// priceCall prices each model the call touched: a rate-card entry wins;
+// otherwise claude's own figure is the cost when the call went to Anthropic,
+// and the model is unpriced when it was routed elsewhere (claude prices
+// someone else's tokens at Anthropic list price).
+func priceCall(cr *claudeResponse, requestedModel string, est CostEstimator, isRouted bool) Cost {
+	if len(cr.ModelUsage) == 0 {
+		return priceModel(stripProviderPrefix(requestedModel), modelUsage{
+			InputTokens:              cr.Usage.InputTokens,
+			CacheCreationInputTokens: cr.Usage.CacheCreationInputTokens,
+			CacheReadInputTokens:     cr.Usage.CacheReadInputTokens,
+			OutputTokens:             cr.Usage.OutputTokens,
+			CostUSD:                  cr.TotalCost,
+		}, est, isRouted)
+	}
+	var total Cost
+	for model, u := range cr.ModelUsage {
+		total = total.Add(priceModel(model, u, est, isRouted))
+	}
+	return total
+}
+
+func priceModel(model string, u modelUsage, est CostEstimator, isRouted bool) Cost {
+	if est != nil {
+		if usd, ok := est.EstimateCost(model, u.InputTokens, u.CacheCreationInputTokens, u.CacheReadInputTokens, u.OutputTokens); ok {
+			return KnownCost(usd)
+		}
+	}
+	if !isRouted {
+		return KnownCost(u.CostUSD)
+	}
+	return UnpricedCost(model)
 }
 
 // stripProviderPrefix removes the "provider/" prefix from a pi-format model

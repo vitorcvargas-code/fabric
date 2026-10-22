@@ -20,7 +20,7 @@ type LoopStats struct {
 	Calls     int
 	TotalIn   int
 	TotalOut  int
-	TotalCost float64
+	TotalCost llm.Cost
 }
 
 type LoopOptions struct {
@@ -31,9 +31,9 @@ type LoopOptions struct {
 	DryRun          bool
 	Troubleshooting []string
 	OnFixStart      func(pass int)
-	OnFixDone        func(ok bool)
-	OnFixWorking     func(pass int) func() // returns stop function for spinner
-	OnBeforeFix      func(pass int) string // returns guidance or "" to proceed normally
+	OnFixDone       func(ok bool)
+	OnFixWorking    func(pass int) func() // returns stop function for spinner
+	OnBeforeFix     func(pass int) string // returns guidance or "" to proceed normally
 }
 
 func RunLoop(driver llm.Driver, root string, opts LoopOptions, writeFiles func(map[string]string) int, syncBack func(map[string]string)) (LoopStats, error) {
@@ -104,7 +104,7 @@ func RunLoop(driver llm.Driver, root string, opts LoopOptions, writeFiles func(m
 		ls.Calls++
 		ls.TotalIn += fixResult.Metrics.TotalInputTokens()
 		ls.TotalOut += fixResult.Metrics.OutputTokens
-		ls.TotalCost += fixResult.Metrics.CostUSD
+		ls.TotalCost = ls.TotalCost.Add(fixResult.Metrics.Cost)
 
 		if opts.Format != "" {
 			runShellCmd(root, opts.Format)
@@ -161,7 +161,7 @@ func runTroubleshooting(dir string, commands []string) {
 	fmt.Fprintf(os.Stderr, "  ⚡ troubleshooting (%d commands via %s)\n", len(filtered), shell)
 	cmd := exec.Command(shell, "-c", script)
 	cmd.Dir = dir
-	cmd.Stderr = os.Stderr // user sees troubleshooting progress
+	cmd.Stderr = os.Stderr      // user sees troubleshooting progress
 	envOut, err := cmd.Output() // captures "env" dump on stdout
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "  ⚠ troubleshooting shell exited with error: %v\n", err)

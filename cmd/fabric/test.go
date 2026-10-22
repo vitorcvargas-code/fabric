@@ -128,7 +128,7 @@ func runTest(args []string) error {
 	writeTotalLine(" tokens", fmt.Sprintf("%s in / %s out",
 		pipeline.FormatTokens(testMetrics.TotalInputTokens()),
 		pipeline.FormatTokens(testMetrics.OutputTokens)))
-	writeTotalLine(" cost", fmt.Sprintf("$%.4f", testMetrics.CostUSD))
+	writeTotalLine(" cost", testMetrics.Cost.String())
 	separator("━")
 	return nil
 }

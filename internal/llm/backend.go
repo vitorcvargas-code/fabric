@@ -9,7 +9,7 @@ type Metrics struct {
 	CacheCreationInputTokens int // prompt cache write
 	CacheReadInputTokens     int // prompt cache read
 	OutputTokens             int
-	CostUSD                  float64
+	Cost                     Cost
 	Calls                    int    // number of LLM subprocesses summed into this metric
 	RequestedModel           string // --model value passed to the driver
 	Model                    string // model reported by the provider after the call
@@ -69,8 +69,8 @@ type BareConfigurable interface {
 	SetBare(v bool)
 }
 
-// CostEstimatorConfigurable is implemented by drivers that accept an
-// external cost estimator (e.g. pi with provider rate cards).
+// CostEstimatorConfigurable is implemented by drivers that accept a rate card
+// for models the provider cannot price itself (llm.model_pricing).
 type CostEstimatorConfigurable interface {
 	SetCostEstimator(e CostEstimator)
 }

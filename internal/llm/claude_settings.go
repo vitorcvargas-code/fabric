@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // claudeSettingsPath returns the Claude Code settings file used for auth.
@@ -96,4 +97,28 @@ func scopedSettingsFor(projectRoot string) (settingsPath string, cleanup func(),
 
 	cleanup = func() { os.RemoveAll(tmpDir) }
 	return sp, cleanup, nil
+}
+
+// anthropicBaseURL is the endpoint claude will call: the env block of the
+// settings file (copied into every call by scopedSettingsFor) wins over the
+// process environment, as it does inside claude.
+func anthropicBaseURL() string {
+	if authPath := claudeSettingsPath(); authPath != "" {
+		var userSettings struct {
+			Env map[string]string `json:"env"`
+		}
+		if data, err := os.ReadFile(authPath); err == nil && json.Unmarshal(data, &userSettings) == nil {
+			if url := userSettings.Env["ANTHROPIC_BASE_URL"]; url != "" {
+				return url
+			}
+		}
+	}
+	return os.Getenv("ANTHROPIC_BASE_URL")
+}
+
+// isRoutedAwayFromAnthropic reports whether claude's calls are served by
+// another provider (e.g. DeepSeek's Anthropic-compatible endpoint). claude
+// still prices them at Anthropic list price, so its figure is not a cost.
+func isRoutedAwayFromAnthropic(baseURL string) bool {
+	return baseURL != "" && !strings.Contains(baseURL, "anthropic.com")
 }

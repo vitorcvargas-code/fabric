@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/vitorcvargas-code/fabric/internal/buildfix"
+	"github.com/vitorcvargas-code/fabric/internal/llm"
 	"github.com/vitorcvargas-code/fabric/internal/persona"
 	"github.com/vitorcvargas-code/fabric/internal/pipeline"
 	"github.com/vitorcvargas-code/fabric/internal/reviewer"
@@ -65,7 +66,7 @@ func runReview(args []string) error {
 
 	totalStart := time.Now()
 	var totalIn, totalOut int
-	var totalCost float64
+	var totalCost llm.Cost
 	fileContents := map[string]string{}
 	if state != nil {
 		mergeMaps(fileContents, state.Files)
@@ -85,7 +86,7 @@ func runReview(args []string) error {
 
 	var rvPasses, rvCalls, rvFiles int
 	var rvIn, rvOut int
-	var rvCost float64
+	var rvCost llm.Cost
 	skipProject := opts.skipProjectCheck || cfg.cfg.Command.SkipProjectCheck
 	skipSecurity := opts.skipSecurityCheck || cfg.cfg.Command.SkipSecurityCheck
 
@@ -124,10 +125,10 @@ func runReview(args []string) error {
 		rvCalls++
 		totalIn += rv.Metrics.TotalInputTokens()
 		totalOut += rv.Metrics.OutputTokens
-		totalCost += rv.Metrics.CostUSD
+		totalCost = totalCost.Add(rv.Metrics.Cost)
 		rvIn += rv.Metrics.TotalInputTokens()
 		rvOut += rv.Metrics.OutputTokens
-		rvCost += rv.Metrics.CostUSD
+		rvCost = rvCost.Add(rv.Metrics.Cost)
 		status("✓", "review done", fmt.Sprintf("%s in, %s out (%.0fs)",
 			pipeline.FormatTokens(rv.Metrics.TotalInputTokens()),
 			pipeline.FormatTokens(rv.Metrics.OutputTokens),
@@ -221,10 +222,10 @@ func runReview(args []string) error {
 		rvCalls++
 		totalIn += fixResult.Metrics.TotalInputTokens()
 		totalOut += fixResult.Metrics.OutputTokens
-		totalCost += fixResult.Metrics.CostUSD
+		totalCost = totalCost.Add(fixResult.Metrics.Cost)
 		rvIn += fixResult.Metrics.TotalInputTokens()
 		rvOut += fixResult.Metrics.OutputTokens
-		rvCost += fixResult.Metrics.CostUSD
+		rvCost = rvCost.Add(fixResult.Metrics.Cost)
 
 		fixed := writeFiles(ctx.Root, fixResult.Files, opts.dryRun)
 		rvFiles += fixed
@@ -256,7 +257,7 @@ summary:
 	writeTotalLine(" files fixed", fmt.Sprintf("%d", rvFiles))
 	writeTotalLine(" time", time.Since(totalStart).Round(time.Millisecond).String())
 	writeTotalLine(" tokens", fmt.Sprintf("%s in  %s out", pipeline.FormatTokens(rvIn), pipeline.FormatTokens(rvOut)))
-	writeTotalLine(" cost", fmt.Sprintf("$%.4f", rvCost))
+	writeTotalLine(" cost", rvCost.String())
 	writeTotalLine(" llm calls", fmt.Sprintf("%d", rvCalls))
 	separator("━")
 	return nil

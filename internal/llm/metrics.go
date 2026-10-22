@@ -39,7 +39,7 @@ func (m Metrics) CacheNote() string {
 // HasMetrics reports whether the driver provided any token or cost data.
 // Backends that don't report metrics (e.g. pi print mode) return false.
 func (m Metrics) HasMetrics() bool {
-	return m.InputTokens > 0 || m.OutputTokens > 0 || m.CostUSD > 0
+	return m.InputTokens > 0 || m.OutputTokens > 0 || m.Cost.USD > 0 || !m.Cost.IsKnown()
 }
 
 // LogStage prints per-call metrics for one pipeline stage (one LLM subprocess).
@@ -55,7 +55,7 @@ func LogStageTo(w io.Writer, stage string, m Metrics) {
 		model = m.RequestedModel
 	}
 	if m.HasMetrics() {
-		fmt.Fprintf(w, "fabric: [%s] %s (%s), $%.4f\n", stage, m.FormatTokens(), model, m.CostUSD)
+		fmt.Fprintf(w, "fabric: [%s] %s (%s), %s\n", stage, m.FormatTokens(), model, m.Cost)
 	} else {
 		dur := time.Duration(m.DurationMs) * time.Millisecond
 		fmt.Fprintf(w, "fabric: [%s] complete (%v, %s)\n", stage, dur.Round(time.Millisecond), model)
@@ -87,7 +87,7 @@ func Merge(a, b Metrics) Metrics {
 		CacheCreationInputTokens: a.CacheCreationInputTokens + b.CacheCreationInputTokens,
 		CacheReadInputTokens:     a.CacheReadInputTokens + b.CacheReadInputTokens,
 		OutputTokens:             a.OutputTokens + b.OutputTokens,
-		CostUSD:                  a.CostUSD + b.CostUSD,
+		Cost:                     a.Cost.Add(b.Cost),
 		Calls:                    calls,
 		RequestedModel:           requested,
 		Model:                    model,

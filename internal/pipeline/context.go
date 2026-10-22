@@ -302,7 +302,29 @@ func (c *Context) NewDriver(p persona.Persona) (llm.Driver, error) {
 		}
 	}
 
+	ApplyModelPricing(d, c.Config.LLM.ModelPricing)
+
 	return d, nil
+}
+
+// ApplyModelPricing hands llm.model_pricing to drivers that accept a rate
+// card. Models absent from it keep the provider's own cost, or are reported
+// as unpriced — never billed at $0.
+func ApplyModelPricing(d llm.Driver, pricing map[string]config.RateCardYAML) {
+	ce, ok := d.(llm.CostEstimatorConfigurable)
+	if !ok || len(pricing) == 0 {
+		return
+	}
+	rates := make(map[string]llm.RateCard, len(pricing))
+	for m, rc := range pricing {
+		rates[m] = llm.RateCard{
+			InputPer1M:      rc.InputPer1M,
+			OutputPer1M:     rc.OutputPer1M,
+			CacheReadPer1M:  rc.CacheReadPer1M,
+			CacheWritePer1M: rc.CacheWritePer1M,
+		}
+	}
+	ce.SetCostEstimator(llm.NewRateCardCostEstimator(rates))
 }
 
 // needsWorkDir returns true for all phases — the worktree is always used

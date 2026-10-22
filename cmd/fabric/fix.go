@@ -46,6 +46,7 @@ func runFix(args []string) error {
 	if err != nil {
 		return fmt.Errorf("fix driver: %w", err)
 	}
+	pipeline.ApplyModelPricing(fixDrv, cfg.cfg.LLM.ModelPricing)
 	if vc, ok := fixDrv.(llm.VerboseConfigurable); ok {
 		vc.SetVerbose(true)
 	}
@@ -53,11 +54,11 @@ func runFix(args []string) error {
 	_ = persona.ByName(persona.PhaseFix) // ensure persona exists
 
 	loopOpts := buildfix.LoopOptions{
-		ProjectCheck:   cfg.cfg.Command.ProjectCheck,
-		Format:         cfg.cfg.Command.Format,
-		CheckFilter:    cfg.cfg.Command.CheckFilter,
+		ProjectCheck:    cfg.cfg.Command.ProjectCheck,
+		Format:          cfg.cfg.Command.Format,
+		CheckFilter:     cfg.cfg.Command.CheckFilter,
 		Troubleshooting: cfg.cfg.Command.TestTroubleshooting,
-		DryRun:         opts.dryRun,
+		DryRun:          opts.dryRun,
 		OnFixStart: func(pass int) {
 			fmt.Fprintf(os.Stderr, "  \U0001F9E0 fix      %s%s pass %d%s\n",
 				cDim+pipeline.ModelName(fixDrv)+cReset, cDim, pass, cReset)
@@ -90,7 +91,7 @@ func runFix(args []string) error {
 	writeTotalLine(" files", fmt.Sprintf("%d", ls.Written))
 	writeTotalLine(" time", fmt.Sprintf("%.0fs", time.Since(start).Seconds()))
 	writeTotalLine(" tokens", fmt.Sprintf("%s in / %s out", pipeline.FormatTokens(ls.TotalIn), pipeline.FormatTokens(ls.TotalOut)))
-	writeTotalLine(" cost", fmt.Sprintf("$%.4f", ls.TotalCost))
+	writeTotalLine(" cost", ls.TotalCost.String())
 	writeTotalLine(" calls", fmt.Sprintf("%d", ls.Calls))
 	separator("━")
 	return nil
