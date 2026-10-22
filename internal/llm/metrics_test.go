@@ -32,11 +32,11 @@ func TestMetrics_FormatTokens_WithCache(t *testing.T) {
 func TestMerge(t *testing.T) {
 	a := Metrics{
 		InputTokens: 1, CacheCreationInputTokens: 10, OutputTokens: 2,
-		CostUSD: 0.1, Calls: 1, RequestedModel: "sonnet", Model: "sonnet",
+		Cost: KnownCost(0.1), Calls: 1, RequestedModel: "sonnet", Model: "sonnet",
 	}
 	b := Metrics{
 		InputTokens: 3, CacheReadInputTokens: 20, OutputTokens: 4,
-		CostUSD: 0.2, Calls: 1, Model: "sonnet",
+		Cost: UnpricedCost("deepseek-v4-pro"), Calls: 1, Model: "sonnet",
 	}
 	got := Merge(a, b)
 	if got.TotalInputTokens() != 34 {
@@ -45,8 +45,8 @@ func TestMerge(t *testing.T) {
 	if got.OutputTokens != 6 {
 		t.Fatalf("output = %d, want 6", got.OutputTokens)
 	}
-	if got.CostUSD < 0.299 || got.CostUSD > 0.301 {
-		t.Fatalf("cost = %v, want ~0.3", got.CostUSD)
+	if got.Cost.String() != "$0.1000 + $? (no rate for deepseek-v4-pro)" {
+		t.Fatalf("cost = %q, want the priced part plus the unpriced model", got.Cost)
 	}
 	if got.Calls != 2 {
 		t.Fatalf("calls = %d, want 2", got.Calls)

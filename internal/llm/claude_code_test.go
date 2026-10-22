@@ -18,7 +18,7 @@ func TestClaudeResponseMetrics_ParseCacheFields(t *testing.T) {
 			"output_tokens": 800
 		},
 		"modelUsage": {
-			"claude-sonnet-4-6-bedrock": {}
+			"claude-sonnet-4-6-bedrock": {"costUSD": 0.42}
 		}
 	}`
 
@@ -32,8 +32,8 @@ func TestClaudeResponseMetrics_ParseCacheFields(t *testing.T) {
 		CacheCreationInputTokens: cr.Usage.CacheCreationInputTokens,
 		CacheReadInputTokens:     cr.Usage.CacheReadInputTokens,
 		OutputTokens:             cr.Usage.OutputTokens,
-		CostUSD:                  cr.TotalCost,
-		Model:                    cr.model(),
+		Cost:                     priceCall(&cr, "", nil, false),
+		Model:                    cr.model(""),
 	}
 
 	if m.TotalInputTokens() != 15005 {
@@ -42,8 +42,8 @@ func TestClaudeResponseMetrics_ParseCacheFields(t *testing.T) {
 	if m.FormatTokens() != "15005 in / 800 out (5 prompt + 12000 cache write + 3000 cache read)" {
 		t.Fatalf("format = %q", m.FormatTokens())
 	}
-	if m.CostUSD != 0.42 {
-		t.Fatalf("cost = %v", m.CostUSD)
+	if !m.Cost.IsKnown() || m.Cost.USD != 0.42 {
+		t.Fatalf("cost = %v", m.Cost)
 	}
 	if m.Model != "claude-sonnet-4-6-bedrock" {
 		t.Fatalf("model = %q", m.Model)

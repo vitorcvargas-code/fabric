@@ -302,23 +302,29 @@ func (c *Context) NewDriver(p persona.Persona) (llm.Driver, error) {
 		}
 	}
 
-	// Wire model_pricing into drivers that accept a custom cost estimator.
-	// When configured (e.g. deepseek rates), this overrides the provider-reported
-	// cost (which uses Anthropic pricing) with the actual provider's rates.
-	if ce, ok := d.(llm.CostEstimatorConfigurable); ok && len(c.Config.LLM.ModelPricing) > 0 {
-		rates := make(map[string]llm.RateCard, len(c.Config.LLM.ModelPricing))
-		for m, rc := range c.Config.LLM.ModelPricing {
-			rates[m] = llm.RateCard{
-				InputPer1M:      rc.InputPer1M,
-				OutputPer1M:     rc.OutputPer1M,
-				CacheReadPer1M:  rc.CacheReadPer1M,
-				CacheWritePer1M: rc.CacheWritePer1M,
-			}
-		}
-		ce.SetCostEstimator(llm.NewRateCardCostEstimator(llm.RateCard{}, rates))
-	}
+	ApplyModelPricing(d, c.Config.LLM.ModelPricing)
 
 	return d, nil
+}
+
+// ApplyModelPricing hands llm.model_pricing to drivers that accept a rate
+// card. Models absent from it keep the provider's own cost, or are reported
+// as unpriced — never billed at $0.
+func ApplyModelPricing(d llm.Driver, pricing map[string]config.RateCardYAML) {
+	ce, ok := d.(llm.CostEstimatorConfigurable)
+	if !ok || len(pricing) == 0 {
+		return
+	}
+	rates := make(map[string]llm.RateCard, len(pricing))
+	for m, rc := range pricing {
+		rates[m] = llm.RateCard{
+			InputPer1M:      rc.InputPer1M,
+			OutputPer1M:     rc.OutputPer1M,
+			CacheReadPer1M:  rc.CacheReadPer1M,
+			CacheWritePer1M: rc.CacheWritePer1M,
+		}
+	}
+	ce.SetCostEstimator(llm.NewRateCardCostEstimator(rates))
 }
 
 // needsWorkDir returns true for all phases — the worktree is always used

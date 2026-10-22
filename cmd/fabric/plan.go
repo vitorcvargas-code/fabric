@@ -111,11 +111,11 @@ func runPlan(args []string) error {
 			fmt.Fprintf(os.Stderr, "fabric: compressor warning (non-fatal): %v\n", err)
 		} else {
 			compressedTask = compResult.Task.Format()
-			fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, $%.4f, %v\n", float64(len(compressorInput))/1024, float64(len(compressedTask))/1024, compResult.Metrics.TotalInputTokens(), compResult.Metrics.OutputTokens, compResult.Metrics.CostUSD, compLatency.Round(time.Millisecond))
+			fmt.Fprintf(os.Stderr, "fabric: [compress] %.1fK → %.1fK, %d in/%d out, %s, %v\n", float64(len(compressorInput))/1024, float64(len(compressedTask))/1024, compResult.Metrics.TotalInputTokens(), compResult.Metrics.OutputTokens, compResult.Metrics.Cost, compLatency.Round(time.Millisecond))
 			phaseMetrics = append(phaseMetrics, phaseMetric{
 				name: "compress", model: actualModel(compResult.Metrics),
 				tokensIn: compResult.Metrics.TotalInputTokens(), tokensOut: compResult.Metrics.OutputTokens,
-				cost: compResult.Metrics.CostUSD, latency: compLatency,
+				cost: compResult.Metrics.Cost, latency: compLatency,
 			})
 			if compResult.Task.Summary != "" {
 				rawTask = compResult.Task.Summary
@@ -153,9 +153,9 @@ func runPlan(args []string) error {
 			phaseMetrics = append(phaseMetrics, phaseMetric{
 				name: "augment-analyze", model: actualModel(augMetrics),
 				tokensIn: augMetrics.TotalInputTokens(), tokensOut: augMetrics.OutputTokens,
-				cost: augMetrics.CostUSD, latency: augLatency,
+				cost: augMetrics.Cost, latency: augLatency,
 			})
-			fmt.Fprintf(os.Stderr, "fabric: [augment] %d in/%d out, $%.4f, %v\n", augMetrics.TotalInputTokens(), augMetrics.OutputTokens, augMetrics.CostUSD, augLatency.Round(time.Millisecond))
+			fmt.Fprintf(os.Stderr, "fabric: [augment] %d in/%d out, %s, %v\n", augMetrics.TotalInputTokens(), augMetrics.OutputTokens, augMetrics.Cost, augLatency.Round(time.Millisecond))
 			if !opts.autoApprove && ar.HasQuestions && len(ar.Questions) > 0 {
 				answers = augmenter.PresentQuestions(ar.Questions)
 				resolveStart := time.Now()
@@ -168,9 +168,9 @@ func runPlan(args []string) error {
 					phaseMetrics = append(phaseMetrics, phaseMetric{
 						name: "augment-resolve", model: actualModel(resolveMetrics),
 						tokensIn: resolveMetrics.TotalInputTokens(), tokensOut: resolveMetrics.OutputTokens,
-						cost: resolveMetrics.CostUSD, latency: time.Since(resolveStart),
+						cost: resolveMetrics.Cost, latency: time.Since(resolveStart),
 					})
-					fmt.Fprintf(os.Stderr, "fabric: [augment resolve] %d in/%d out, $%.4f, %v\n", resolveMetrics.TotalInputTokens(), resolveMetrics.OutputTokens, resolveMetrics.CostUSD, time.Since(resolveStart).Round(time.Millisecond))
+					fmt.Fprintf(os.Stderr, "fabric: [augment resolve] %d in/%d out, %s, %v\n", resolveMetrics.TotalInputTokens(), resolveMetrics.OutputTokens, resolveMetrics.Cost, time.Since(resolveStart).Round(time.Millisecond))
 				}
 			}
 			if len(ar.SuccessCriteria) == 0 && len(ar.Questions) > 0 {
@@ -266,10 +266,10 @@ func runPlan(args []string) error {
 		phaseMetrics = append(phaseMetrics, phaseMetric{
 			name: "architect", model: actualModel(result.Metrics),
 			tokensIn: result.Metrics.TotalInputTokens(), tokensOut: result.Metrics.OutputTokens,
-			cost: result.Metrics.CostUSD, latency: archLatency,
+			cost: result.Metrics.Cost, latency: archLatency,
 		})
 
-		fmt.Fprintf(os.Stderr, "fabric: [architect] %d in/%d out, $%.4f, %v\n", result.Metrics.TotalInputTokens(), result.Metrics.OutputTokens, result.Metrics.CostUSD, archLatency.Round(time.Millisecond))
+		fmt.Fprintf(os.Stderr, "fabric: [architect] %d in/%d out, %s, %v\n", result.Metrics.TotalInputTokens(), result.Metrics.OutputTokens, result.Metrics.Cost, archLatency.Round(time.Millisecond))
 		archPlan = result.Plan
 		if len(confirmedSC) > 0 {
 			archPlan.SuccessCriteria = confirmedSC
@@ -345,19 +345,19 @@ func runPlan(args []string) error {
 
 	totalLatency := time.Since(totalStart)
 	var totalIn, totalOut int
-	var totalCost float64
+	var totalCost llm.Cost
 	for _, pm := range phaseMetrics {
 		totalIn += pm.tokensIn
 		totalOut += pm.tokensOut
-		totalCost += pm.cost
+		totalCost = totalCost.Add(pm.cost)
 	}
 	fmt.Fprintf(os.Stderr, "\n── phase metrics ─────────────────────────────\n")
 	for _, pm := range phaseMetrics {
-		fmt.Fprintf(os.Stderr, "  %-12s %s  %d in / %d out  $%.4f  %v\n",
+		fmt.Fprintf(os.Stderr, "  %-12s %s  %d in / %d out  %s  %v\n",
 			pm.name+":", pm.model, pm.tokensIn, pm.tokensOut, pm.cost, pm.latency.Round(time.Millisecond))
 	}
 	fmt.Fprintf(os.Stderr, "  ─────────────────────────────────────────────\n")
-	fmt.Fprintf(os.Stderr, "  %-12s %d calls  %d in / %d out  $%.4f  %v\n",
+	fmt.Fprintf(os.Stderr, "  %-12s %d calls  %d in / %d out  %s  %v\n",
 		"total:", len(phaseMetrics), totalIn, totalOut, totalCost, totalLatency.Round(time.Millisecond))
 	fmt.Fprintf(os.Stderr, "──────────────────────────────────────────────\n")
 
@@ -499,7 +499,7 @@ type phaseMetric struct {
 	model     string
 	tokensIn  int
 	tokensOut int
-	cost      float64
+	cost      llm.Cost
 	latency   time.Duration
 }
 

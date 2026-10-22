@@ -58,7 +58,7 @@ func runExec(args []string) error {
 	var totalStart = time.Now()
 	var calls int
 	var totalIn, totalOut int
-	var totalCost float64
+	var totalCost llm.Cost
 	var written int
 
 	n := len(p.FilesToCreate) + len(p.FilesToModify)
@@ -193,7 +193,7 @@ func runExec(args []string) error {
 	calls += execMetrics.Calls
 	totalIn += execMetrics.TotalInputTokens()
 	totalOut += execMetrics.OutputTokens
-	totalCost += execMetrics.CostUSD
+	totalCost = totalCost.Add(execMetrics.Cost)
 	status("✓", "codegen done", fmt.Sprintf("%s in, %s out (%.0fs, %d calls, %d batches)",
 		pipeline.FormatTokens(execMetrics.TotalInputTokens()),
 		pipeline.FormatTokens(execMetrics.OutputTokens),
@@ -302,7 +302,7 @@ func runExec(args []string) error {
 		calls += testMetrics.Calls
 		totalIn += testMetrics.TotalInputTokens()
 		totalOut += testMetrics.OutputTokens
-		totalCost += testMetrics.CostUSD
+		totalCost = totalCost.Add(testMetrics.Cost)
 		status("✓", "tests done", fmt.Sprintf("%s in, %s out (%.0fs, %d calls, %d batches)",
 			pipeline.FormatTokens(testMetrics.TotalInputTokens()),
 			pipeline.FormatTokens(testMetrics.OutputTokens),
@@ -324,11 +324,11 @@ func runExec(args []string) error {
 		}
 
 		loopOpts := buildfix.LoopOptions{
-			ProjectCheck:   cfg.cfg.Command.ProjectCheck,
-			Format:         cfg.cfg.Command.Format,
-			CheckFilter:    cfg.cfg.Command.CheckFilter,
+			ProjectCheck:    cfg.cfg.Command.ProjectCheck,
+			Format:          cfg.cfg.Command.Format,
+			CheckFilter:     cfg.cfg.Command.CheckFilter,
 			Troubleshooting: cfg.cfg.Command.TestTroubleshooting,
-			DryRun:         opts.dryRun,
+			DryRun:          opts.dryRun,
 			OnFixWorking: func(pass int) func() {
 				stop, done := spinner(fixModel, "fix", fmt.Sprintf("pass %d", pass))
 				return func() { close(stop); <-done }
@@ -349,7 +349,7 @@ func runExec(args []string) error {
 		calls += ls.Calls
 		totalIn += ls.TotalIn
 		totalOut += ls.TotalOut
-		totalCost += ls.TotalCost
+		totalCost = totalCost.Add(ls.TotalCost)
 	}
 
 	b, _ := json.Marshal(p)
@@ -359,7 +359,7 @@ func runExec(args []string) error {
 	writeTotalLine(" files", fmt.Sprintf("%d", written))
 	writeTotalLine(" time", fmt.Sprintf("%.0fs", time.Since(totalStart).Seconds()))
 	writeTotalLine(" tokens", fmt.Sprintf("%s in / %s out", pipeline.FormatTokens(totalIn), pipeline.FormatTokens(totalOut)))
-	writeTotalLine(" cost", fmt.Sprintf("$%.4f", totalCost))
+	writeTotalLine(" cost", totalCost.String())
 	writeTotalLine(" calls", fmt.Sprintf("%d", calls))
 	separator("━")
 	return nil
@@ -447,7 +447,6 @@ func writeFiles(root string, files map[string]string, dryRun bool) int {
 	}
 	return w
 }
-
 
 type execOpts struct {
 	configPath    string
